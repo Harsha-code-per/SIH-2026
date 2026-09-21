@@ -18,15 +18,15 @@ you can watch rather than take on faith.
 | Multimodal | `app/ocr.py`, `parse_page`, `describe_image` | scanned PDF, drawings |
 | Real deliverables | `write_docx`, `write_xlsx` | Word/Excel, not chat replies |
 | Local knowledge base | `app/kb.py` | chunk-level provenance |
-| **Proof of no external calls** | `app/egress.py`, `egress/sentinel.sh` | see below |
+| **Proof of no external calls** | `app/egress.py`, `egress/proxy.conf` | **enforced, measured** |
 
 ## Two modes, one codebase
 
 | | `prototype` | `sovereign` |
 |---|---|---|
 | Inference | NVIDIA NIM, hosted, open-weight models | local, in-network |
-| Egress allowlist | 1 pinned host | **empty** |
-| Network | bridge + nftables default-deny | `internal: true` — no route exists |
+| Permitted destinations | exactly 1, via the gateway | **none** — no gateway at all |
+| Network | `internal: true` — no default route | `internal: true` — no default route |
 | Everything else | local | local |
 
 Knowledge base, embeddings, document store, code sandbox and file tools are
@@ -44,30 +44,45 @@ make dev                      # http://127.0.0.1:8117
 make test                     # every check
 ```
 
-Containerised, with enforcement:
+Containerised, where containment is actually enforced:
 
 ```bash
-make proto      && MODE=prototype make enforce     # one host reachable
-make sovereign  && MODE=sovereign  make enforce    # nothing reachable
+make proto        # app + gateway; one destination reachable
+make sovereign    # no gateway; nothing reachable
 ```
 
 ## Proving the sovereign claim
 
-The problem statement asks for proof, not a statement. Three layers, and the
-app is not trusted to report on itself:
+The problem statement asks for proof, not a statement.
 
-1. **Enforcement.** `egress/sentinel.sh` installs an nftables default-deny
-   scoped to the workbench subnet. In sovereign mode the compose override also
-   marks the network `internal: true`, so there is no default route to drop
-   packets on.
-2. **Observation.** `tcpdump` runs as an independent observer. If it is
-   unavailable the UI reads `UNVERIFIED` and `contained: false` — it never
-   shows a green badge it cannot back. Traffic that left without being on the
-   allowlist is `LEAKED`, never `ALLOWED`.
+1. **Enforcement, without privileges.** The app runs on a Docker network marked
+   `internal: true`, so it has no default route. The internet is not blocked
+   for it; it is unreachable. A gateway container is the single deliberate
+   opening — the only container on both networks, forwarding exactly one
+   destination by TCP passthrough, so it never sees plaintext and never holds a
+   key while certificates are still validated end to end. Removing the gateway
+   (`make sovereign`) leaves no opening at all.
+2. **Observation.** `tcpdump` runs as an independent observer, and enforcement
+   is *detected* by reading the routing table rather than assumed. Watching
+   nothing leave is not the same as nothing being able to leave, so `contained`
+   requires both. If the observer is unavailable the UI reads `UNVERIFIED` — it
+   never shows a green badge it cannot back. Traffic that left without being
+   permitted is `LEAKED`, never `ALLOWED`.
 3. **The tripwire.** A button that genuinely attempts `https://api.openai.com`.
-   It must fail, and the failure must also appear in the captured traffic.
+
+Measured from inside the running stack:
+
+```
+no default route            api.openai.com   → does not resolve
+1.1.1.1:53      unroutable  github.com       → does not resolve
+tripwire        BLOCKED in 1 ms (DNS)        permitted host → 200, 81 models
+```
 
 `make watch` runs the observer alone, for a demo split-screen.
+
+Because nothing may be fetched at runtime, the embedding model is baked into
+the image at build time. A model downloaded on first use fails in an air-gapped
+deployment, and it fails quietly.
 
 ## Grounding
 
