@@ -24,6 +24,7 @@ models:
     tier: L1
     caps: [text, tools]
     ctx: 32768
+    max_tokens: 4096          # reasoning model: thinks before it emits
     why: "Cheap, quick. Summaries, extraction, classification."
     prototype: nvidia/nemotron-3-nano-omni-30b-a3b-reasoning   # 3B active
     sovereign: qwen3:4b
@@ -32,6 +33,7 @@ models:
     tier: L2
     caps: [text, tools, code]
     ctx: 32768
+    max_tokens: 8192          # must fit a whole document payload after reasoning
     why: "Multi-step analysis, code, anything that must not be sloppy."
     prototype: nvidia/nemotron-3-super-120b-a12b              # 12B active
     sovereign: qwen3:8b
@@ -40,6 +42,7 @@ models:
     tier: LV
     caps: [vision, ocr, tables]
     ctx: 8192
+    max_tokens: 4096
     why: "Scanned pages, tables, handwriting. Purpose-built beats general VLM."
     prototype: nvidia/nemotron-parse-2.0
     sovereign: glm-ocr:0.9b
@@ -48,6 +51,7 @@ models:
     tier: LV2
     caps: [vision]
     ctx: 16384
+    max_tokens: 2048
     why: "Photographs and engineering drawings (P&ID), not page OCR."
     prototype: meta/llama-3.2-11b-vision-instruct
     sovereign: qwen2.5vl:3b

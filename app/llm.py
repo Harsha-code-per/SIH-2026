@@ -74,8 +74,8 @@ class LLM:
                     return r
                 except Exception as e:
                     last = e
-                    retryable = any(c in f"{e}" for c in ("503", "429", "ResourceExhausted",
-                                                          "Timeout", "502"))
+                    retryable = any(c in f"{e}" for c in ("503", "429", "500", "502", "504",
+                                                          "ResourceExhausted", "Timeout"))
                     if not retryable:
                         break
                     await asyncio.sleep(1.5 * (attempt + 1))

@@ -37,6 +37,12 @@ _ANALYZE = re.compile(
 )
 _SUMMARIZE = re.compile(r"\b(summari[sz]e|tl;?dr|brief|digest|key points)\b", re.I)
 
+# A request for a file deliverable is never a bare calculation, whatever verbs
+# it happens to contain.
+_DELIVERABLE = re.compile(
+    r"\b(word document|\.docx|docx|excel|\.xlsx|xlsx|spreadsheet|powerpoint|"
+    r"\.pptx|pptx|presentation|approval note|draft a|produce a|generate a)\b", re.I)
+
 # An image is a "drawing" (P&ID, schematic, photo) rather than a scanned page
 # when the user says so, or when the page carries almost no machine text.
 _DRAWING = re.compile(r"\b(p&?id|drawing|diagram|schematic|photo|picture|sketch)\b", re.I)
@@ -60,6 +66,7 @@ class Decision:
     model_id: str | None
     model_name: str | None
     tool: str | None
+    max_tokens: int
     rule: str
     why: str
     features: dict
@@ -82,16 +89,18 @@ def extract_features(prompt: str, *, has_image: bool = False,
     if has_image:
         f.image_kind = image_kind or ("drawing" if _DRAWING.search(prompt) else "page")
 
-    # Order matters. Code is checked before arithmetic: "write a script to compute
-    # X" is a coding task that happens to mention computing, not a calculation.
+    # Order matters, and arithmetic goes near the end. Plenty of real tasks say
+    # "compute" in passing -- "check it against the SOP, compute the rise and
+    # draft an approval note" is multi-step work, not a calculation. L0 may only
+    # claim a request that is nothing but arithmetic.
     if _CODE.search(prompt):
         f.task = "code"
         f.needs_tools = True
-    elif _ARITHMETIC.search(prompt.strip()):
-        f.task = "arithmetic"
-    elif _ANALYZE.search(prompt):
+    elif _ANALYZE.search(prompt) or _DELIVERABLE.search(prompt):
         f.task = "analyze"
         f.needs_tools = True
+    elif _ARITHMETIC.search(prompt.strip()):
+        f.task = "arithmetic"
     elif _SUMMARIZE.search(prompt):
         f.task = "summarize"
     return f
@@ -153,6 +162,7 @@ class Router:
                     model_id=chosen["id"] if chosen else None,
                     model_name=self.resolve(chosen) if chosen else None,
                     tool=then.get("tool"),
+                    max_tokens=(chosen or {}).get("max_tokens", 2048),
                     rule=rule["name"],
                     why=rule["why"],
                     features=f.as_dict(),
@@ -176,6 +186,7 @@ class Router:
             model_id=chosen["id"],
             model_name=self.resolve(chosen),
             tool=None,
+            max_tokens=chosen.get("max_tokens", 2048),
             rule=f"escalation-from-{decision.tier}",
             why="Previous tier failed verification; retrying one tier up.",
             features=decision.features,

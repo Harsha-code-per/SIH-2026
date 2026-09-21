@@ -17,6 +17,11 @@ CASES = [
     ("Read this scanned page",                            True,  "LV", "scanned-document"),
     ("Identify the equipment tags in this P&ID",          True,  "LV2", "engineering-drawing"),
     ("x" * 20000,                                         False, "L2", "long-input"),
+    # "compute" in a multi-step request must not drag it down to L0.
+    ("Check P-204 against the SOP, compute the rise, and produce an approval note "
+     "as a Word document",                                False, "L2", "multi-step"),
+    ("Draft a Word document summarising last month's readings",
+                                                          False, "L2", "multi-step"),
 ]
 
 

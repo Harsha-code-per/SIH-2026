@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import ast
 import json
+import re
 import operator as op
 import subprocess
 import tempfile
@@ -54,6 +55,49 @@ def calculate(expression: str) -> dict:
     return {"expression": expr, "result": value,
             "steps": f"{expr} = {value}",
             "engine": "deterministic (no LLM)"}
+
+
+_NUM = r"-?\d+(?:\.\d+)?"
+_PCT = re.compile(
+    rf"percent(?:age)?\s+(increase|decrease|change|difference).{{0,20}}?"
+    rf"from\s+({_NUM})\s+to\s+({_NUM})", re.I)
+# A maximal run of characters that could belong to an expression. Candidates are
+# then validated by actually parsing them, which is more reliable than trying to
+# describe valid arithmetic in one regex.
+_RUN = re.compile(r"[\d.(][\d.\s+\-*/%^()]*")
+_HAS_OP = re.compile(r"[+\-*/%^]")
+
+
+def parse_arithmetic(prompt: str) -> tuple[str, dict]:
+    """Turn a natural-language arithmetic request into an exact tool call.
+
+    Deterministic on purpose: the L0 tier exists so that numbers never depend on
+    a language model, and that guarantee would be hollow if a model decided what
+    the numbers were.
+    """
+    m = _PCT.search(prompt)
+    if m:
+        return "percent_change", {"before": float(m.group(2)), "after": float(m.group(3))}
+
+    text = prompt.replace("\u00d7", "*").replace("\u00f7", "/")
+    best = ""
+    for run in _RUN.findall(text):
+        # Trim from the right until what remains actually parses -- "8.2 to" and
+        # trailing punctuation are common and must not sink the whole candidate.
+        cand = run.strip()
+        while cand:
+            if _HAS_OP.search(cand) and any(c.isdigit() for c in cand):
+                try:
+                    ast.parse(cand, mode="eval")
+                    break
+                except SyntaxError:
+                    pass
+            cand = cand[:-1].strip()
+        if len(cand) > len(best):
+            best = cand
+    if best:
+        return "calculate", {"expression": best}
+    raise ValueError(f"no arithmetic found in {prompt!r}")
 
 
 def percent_change(before: float, after: float) -> dict:

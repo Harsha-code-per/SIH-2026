@@ -43,3 +43,11 @@ if __name__ == "__main__":
             fn()
             print(f"  ok  {name}")
     print("\nagent citations: all checks passed")
+
+
+def test_search_budget_is_small_enough_to_leave_room_to_answer():
+    """Retrieval must not be able to consume the whole step budget."""
+    from app.agent import MAX_STEPS, SEARCH_BUDGET
+    assert SEARCH_BUDGET < MAX_STEPS / 2, (
+        f"a model could spend {SEARCH_BUDGET} of {MAX_STEPS} steps searching "
+        "and never reach the deliverable")
