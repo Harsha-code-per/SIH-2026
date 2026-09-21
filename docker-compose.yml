@@ -1,0 +1,24 @@
+# Prototype mode: the app may reach exactly one host, enforced by
+# egress/sentinel.sh against this pinned subnet. Everything else is dropped
+# and logged.
+#
+#   docker compose up --build
+#   sudo egress/sentinel.sh install prototype
+services:
+  app:
+    build: .
+    environment:
+      MODE: prototype
+      NVIDIA_API_KEY: ${NVIDIA_API_KEY:-}
+    ports: ["8117:8117"]
+    volumes:
+      - ./data:/srv/data
+      - /var/run/docker.sock:/var/run/docker.sock   # to launch the code sandbox
+    cap_add: [NET_RAW, NET_ADMIN]                   # tcpdump observer only
+    networks: [wb]
+
+networks:
+  wb:
+    ipam:
+      config:
+        - subnet: 172.28.117.0/24

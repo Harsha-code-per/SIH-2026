@@ -1,0 +1,24 @@
+# Sovereign mode. The network is `internal: true`, so Docker installs no default
+# route: reaching the internet is not blocked, it is unroutable. The model runs
+# in-network.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.sovereign.yml up
+services:
+  app:
+    environment:
+      MODE: sovereign
+      MODEL_ENDPOINT: http://ollama:11434/v1
+    depends_on: [ollama]
+
+  ollama:
+    image: ollama/ollama:latest
+    volumes: ["./data/models:/root/.ollama"]
+    networks: [wb]
+    deploy:
+      resources:
+        reservations:
+          devices: [{driver: nvidia, count: 1, capabilities: [gpu]}]
+
+networks:
+  wb:
+    internal: true          # <- the whole sovereign claim, in one line

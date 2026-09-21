@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sovereign AI Workbench</title>
+<style>
+  :root{
+    --bg:#0b0f14; --panel:#111823; --panel-2:#0e1520; --line:#1e2b3a;
+    --fg:#dbe6f2; --muted:#7d8fa3; --accent:#38bdf8; --ok:#34d399;
+    --warn:#fbbf24; --bad:#f87171; --mono:ui-monospace,"JetBrains Mono",Menlo,monospace;
+  }
+  :root[data-theme="light"]{
+    --bg:#f6f8fb; --panel:#fff; --panel-2:#eef2f7; --line:#d7e0ea;
+    --fg:#0f1b2a; --muted:#5a6b7d; --accent:#0369a1;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);
+       font:14px/1.5 ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif}
+  header{display:flex;align-items:center;gap:16px;flex-wrap:wrap;
+         padding:12px 16px;border-bottom:1px solid var(--line);background:var(--panel)}
+  h1{font-size:15px;margin:0;letter-spacing:.14em;text-transform:uppercase;font-weight:650}
+  .sub{color:var(--muted);font-size:12px}
+  .spacer{flex:1}
+  .pill{font:11px/1 var(--mono);padding:6px 10px;border-radius:999px;
+        border:1px solid var(--line);background:var(--panel-2);white-space:nowrap}
+  .pill.ok{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 40%,transparent)}
+  .pill.bad{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 40%,transparent)}
+  .pill.warn{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 40%,transparent)}
+  main{display:grid;grid-template-columns:1fr 380px;gap:16px;padding:16px;
+       max-width:1500px;margin:0 auto}
+  @media(max-width:900px){main{grid-template-columns:1fr;padding:16px}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  .card h2{margin:0;padding:10px 14px;font-size:11px;letter-spacing:.12em;
+           text-transform:uppercase;color:var(--muted);
+           border-bottom:1px solid var(--line);background:var(--panel-2);
+           display:flex;align-items:center;gap:8px}
+  .card .body{padding:14px}
+  textarea{width:100%;min-height:86px;resize:vertical;background:var(--panel-2);
+           color:var(--fg);border:1px solid var(--line);border-radius:8px;
+           padding:10px 12px;font:14px/1.5 inherit}
+  textarea:focus{outline:2px solid var(--accent);outline-offset:-1px}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px}
+  button{background:var(--accent);color:#04121c;border:0;border-radius:7px;
+         padding:8px 14px;font-weight:600;font-size:13px;cursor:pointer}
+  button.ghost{background:transparent;color:var(--fg);border:1px solid var(--line)}
+  button.danger{background:transparent;color:var(--bad);
+                border:1px solid color-mix(in srgb,var(--bad) 45%,transparent)}
+  button:hover{filter:brightness(1.08)} button:active{transform:translateY(1px)}
+  .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+  .chip{font-size:12px;padding:5px 9px;border-radius:6px;border:1px solid var(--line);
+        background:var(--panel-2);color:var(--muted);cursor:pointer}
+  .chip:hover{color:var(--fg);border-color:var(--accent)}
+  .kv{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font:12px/1.6 var(--mono)}
+  .kv dt{color:var(--muted)} .kv dd{margin:0;word-break:break-word}
+  .tier{display:inline-block;font:700 12px/1 var(--mono);padding:5px 9px;border-radius:6px;
+        background:color-mix(in srgb,var(--accent) 18%,transparent);color:var(--accent)}
+  .why{margin-top:10px;padding:9px 11px;border-left:2px solid var(--accent);
+       background:var(--panel-2);border-radius:0 6px 6px 0;font-size:12.5px;color:var(--muted)}
+  ul.log{list-style:none;margin:0;padding:0;font:11.5px/1.7 var(--mono);
+         max-height:260px;overflow:auto}
+  ul.log li{display:flex;gap:8px;padding:3px 0;border-bottom:1px solid var(--line)}
+  ul.log li:last-child{border:0}
+  .v{flex:0 0 62px;font-weight:700}
+  .v.BLOCKED{color:var(--ok)} .v.ALLOWED{color:var(--warn)}
+  .v.LEAKED{color:var(--bad);font-weight:800} .v.LOCAL{color:var(--muted)}
+  .muted{color:var(--muted)} .mono{font-family:var(--mono)}
+  .empty{color:var(--muted);font-size:12.5px;font-style:italic}
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}
+  th{color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;
+     letter-spacing:.08em}
+  td.mono{font-family:var(--mono);font-size:11.5px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Sovereign AI Workbench</h1>
+  <span class="sub">PS 26117 &middot; MRPL</span>
+  <span class="spacer"></span>
+  <span class="pill" id="p-mode">mode &middot; &hellip;</span>
+  <span class="pill" id="p-endpoint">endpoint &middot; &hellip;</span>
+  <span class="pill" id="p-egress">egress &middot; &hellip;</span>
+  <button class="ghost" id="theme" aria-label="Toggle theme">&#9788;</button>
+</header>
+
+<main>
+  <div>
+    <section class="card">
+      <h2>Workspace</h2>
+      <div class="body">
+        <textarea id="prompt" placeholder="Describe the task. The router picks the computational path before anything runs."></textarea>
+        <div class="row">
+          <button id="go">Route task</button>
+          <label class="chip"><input type="checkbox" id="hasimg"> attach image/scan</label>
+        </div>
+        <div class="chips" id="examples"></div>
+      </div>
+    </section>
+
+    <section class="card" style="margin-top:16px">
+      <h2>Routing decision</h2>
+      <div class="body" id="decision"><p class="empty">No task routed yet.</p></div>
+    </section>
+
+    <section class="card" style="margin-top:16px">
+      <h2>Model registry <span class="muted" style="text-transform:none;letter-spacing:0">&mdash; models.yaml</span></h2>
+      <div class="body">
+        <table id="registry"><tbody></tbody></table>
+        <div class="row">
+          <button class="ghost" id="reload">Reload registry</button>
+          <span class="muted" style="font-size:12px">Adding a model is a YAML edit, not a code change.</span>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div>
+    <section class="card">
+      <h2>Egress monitor</h2>
+      <div class="body">
+        <dl class="kv">
+          <dt>observer</dt><dd id="e-status">&hellip;</dd>
+          <dt>allowlist</dt><dd id="e-allow" class="mono">&hellip;</dd>
+          <dt>allowed</dt><dd id="e-allowed">0</dd>
+          <dt>blocked</dt><dd id="e-blocked">0</dd>
+          <dt>leaked</dt><dd id="e-leaked">0</dd>
+        </dl>
+        <div class="row">
+          <button class="danger" id="trip">Attempt external call</button>
+        </div>
+        <div class="why" id="trip-out" hidden></div>
+        <ul class="log" id="e-log"><li class="empty">No outbound packets observed.</li></ul>
+      </div>
+    </section>
+  </div>
+</main>
+
+<script>
+const $ = s => document.querySelector(s);
+const EXAMPLES = [
+  "Calculate the percentage increase from 6.5 to 8.2",
+  "Summarize this memo",
+  "Analyze this inspection report against the SOP",
+  "Write a python script to compute the vibration trend",
+  "Identify the equipment tags in this P&ID",
+];
+
+$("#theme").onclick = () => {
+  const r = document.documentElement;
+  r.dataset.theme = r.dataset.theme === "dark" ? "light" : "dark";
+  try { localStorage.setItem("theme", r.dataset.theme); } catch {}
+};
+try {
+  const t = localStorage.getItem("theme");
+  if (t) document.documentElement.dataset.theme = t;
+} catch {}
+
+EXAMPLES.forEach(t => {
+  const b = document.createElement("button");
+  b.className = "chip"; b.textContent = t;
+  b.onclick = () => { $("#prompt").value = t; route(); };
+  $("#examples").append(b);
+});
+
+async function status() {
+  const s = await (await fetch("/api/status")).json();
+  $("#p-mode").textContent = `mode · ${s.mode}`;
+  $("#p-mode").className = "pill " + (s.mode === "sovereign" ? "ok" : "warn");
+  $("#p-endpoint").textContent = `endpoint · ${new URL(s.endpoint).host}`;
+  const tb = $("#registry tbody"); tb.innerHTML = "";
+  tb.insertAdjacentHTML("beforeend",
+    "<tr><th>tier</th><th>id</th><th>resolves to</th><th>caps</th></tr>");
+  for (const m of s.models) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td><span class="tier">${m.tier}</span></td>
+      <td class="mono">${m.id}</td><td class="mono">${m.name}</td>
+      <td class="muted">${m.caps.join(", ")}</td>`;
+    tr.title = m.why;
+    tb.append(tr);
+  }
+}
+
+async function route() {
+  const fd = new FormData();
+  fd.set("prompt", $("#prompt").value);
+  fd.set("has_image", $("#hasimg").checked ? "true" : "false");
+  const d = await (await fetch("/api/route", { method: "POST", body: fd })).json();
+  $("#decision").innerHTML = `
+    <div class="row" style="margin:0 0 10px"><span class="tier">${d.tier}</span>
+      <strong class="mono">${d.model_name ?? d.tool ?? "—"}</strong>
+      <span class="muted mono">rule: ${d.rule}</span></div>
+    <dl class="kv">
+      <dt>task</dt><dd>${d.features.task}</dd>
+      <dt>input</dt><dd>~${d.features.input_tokens} tokens</dd>
+      <dt>image</dt><dd>${d.features.has_image ? (d.features.image_kind ?? "yes") : "none"}</dd>
+      <dt>escalates to</dt><dd>${d.escalates_to ?? "— (ceiling)"}</dd>
+    </dl>
+    <div class="why">${d.why}</div>`;
+}
+$("#go").onclick = route;
+$("#prompt").addEventListener("keydown", e => {
+  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) route();
+});
+
+$("#reload").onclick = async () => {
+  const r = await (await fetch("/api/registry/reload", { method: "POST" })).json();
+  await status();
+  $("#reload").textContent = r.added.length
+    ? `+ ${r.added.join(", ")}` : "No change";
+  setTimeout(() => $("#reload").textContent = "Reload registry", 2500);
+};
+
+$("#trip").onclick = async () => {
+  $("#trip").disabled = true; $("#trip").textContent = "Attempting…";
+  const r = await (await fetch("/api/tripwire", { method: "POST" })).json();
+  const out = $("#trip-out"); out.hidden = false;
+  out.style.borderLeftColor = r.blocked ? "var(--ok)" : "var(--bad)";
+  out.innerHTML = `<strong>${r.blocked ? "BLOCKED" : "NOT CONTAINED"}</strong> —
+    ${r.detail}<br><span class="mono muted">${r.error ?? ""} · ${r.elapsed_ms}ms</span>`;
+  $("#trip").disabled = false; $("#trip").textContent = "Attempt external call";
+};
+
+function renderSnapshot(s) {
+  $("#e-status").textContent = s.status;
+  $("#p-egress").textContent = `egress · ${s.status.startsWith("MONITORING") ? "observed" : "unverified"}`;
+  $("#p-egress").className = "pill " + (s.status.startsWith("MONITORING") ? "ok" : "warn");
+  $("#e-allow").textContent = s.allowlist.join(", ");
+  $("#e-allowed").textContent = s.allowed_count;
+  $("#e-blocked").textContent = s.blocked_count;
+  $("#e-leaked").textContent = s.leaked_count;
+  $("#e-leaked").style.color = s.leaked_count ? "var(--bad)" : "";
+  $("#e-log").innerHTML = "";
+  (s.events ?? []).forEach(addEvent);
+  if (!$("#e-log").children.length)
+    $("#e-log").innerHTML = '<li class="empty">No outbound packets observed.</li>';
+}
+function addEvent(e) {
+  const log = $("#e-log");
+  log.querySelector(".empty")?.remove();
+  const li = document.createElement("li");
+  const t = new Date(e.ts * 1000).toTimeString().slice(0, 8);
+  li.innerHTML = `<span class="v ${e.verdict}">${e.verdict}</span>
+    <span class="muted">${t}</span><span>${e.dst}</span>`;
+  if (e.detail) li.title = e.detail;
+  log.prepend(li);
+  while (log.children.length > 60) log.lastChild.remove();
+}
+
+const es = new EventSource("/api/egress/stream");
+es.onmessage = ev => {
+  const d = JSON.parse(ev.data);
+  if (d.type === "snapshot") renderSnapshot(d);
+  else if (d.type === "egress") {
+    addEvent(d);
+    const k = { BLOCKED: "#e-blocked", ALLOWED: "#e-allowed", LEAKED: "#e-leaked" }[d.verdict];
+    if (k) { $(k).textContent = +$(k).textContent + 1;
+             if (d.verdict === "LEAKED") $("#e-leaked").style.color = "var(--bad)"; }
+  }
+};
+status();
+</script>
+</body>
+</html>

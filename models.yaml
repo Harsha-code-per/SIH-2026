@@ -1,0 +1,96 @@
+# Model registry + routing rules.
+# Adding a model = adding an entry here. No code changes. (PS: "New open weight
+# models should be addable later without redesigning the system.")
+#
+# Verify ids against the live catalogue: python -m app.verify_models
+
+modes:
+  prototype:
+    endpoint: https://integrate.api.nvidia.com/v1
+    api_key_env: NVIDIA_API_KEY
+    egress_allow: [integrate.api.nvidia.com]
+  sovereign:
+    endpoint: http://localhost:11434/v1
+    api_key_env: null
+    egress_allow: []          # empty = nothing may leave. The whole point.
+
+models:
+  - id: fast
+    tier: L1
+    caps: [text, tools]
+    ctx: 32768
+    why: "Cheap, quick. Summaries, extraction, classification."
+    prototype: google/gemma-3-4b-it
+    sovereign: gemma3:4b
+
+  - id: reason
+    tier: L2
+    caps: [text, tools, code]
+    ctx: 32768
+    why: "Multi-step analysis, code, anything that must not be sloppy."
+    prototype: google/gemma-4-31b-it
+    sovereign: qwen3:8b
+
+  - id: doc
+    tier: LV
+    caps: [vision, ocr, tables]
+    ctx: 8192
+    why: "Scanned pages, tables, handwriting. Purpose-built beats general VLM."
+    prototype: nvidia/nemotron-parse-2.0
+    sovereign: glm-ocr:0.9b
+
+  - id: vision
+    tier: LV2
+    caps: [vision]
+    ctx: 16384
+    why: "Photographs and engineering drawings (P&ID), not page OCR."
+    prototype: meta/llama-3.2-11b-vision-instruct
+    sovereign: qwen2.5vl:3b
+
+# First match wins. Evaluated top to bottom against extracted features.
+routing:
+  - name: deterministic-math
+    if:   {task: arithmetic}
+    then: {tier: L0, tool: calculate}
+    why:  "Arithmetic is not a language problem. No LLM touches this."
+
+  - name: engineering-drawing
+    if:   {has_image: true, image_kind: drawing}
+    then: {tier: LV2}
+    why:  "P&IDs and photos need general vision, not page parsing."
+
+  - name: scanned-document
+    if:   {has_image: true}
+    then: {tier: LV}
+    why:  "Scanned page with no text layer -> document VLM."
+
+  - name: code-task
+    if:   {task: code}
+    then: {tier: L2}
+    why:  "Code must run, so it goes to the stronger model."
+
+  - name: long-input
+    if:   {input_tokens_gt: 4000}
+    then: {tier: L2}
+    why:  "Long context degrades small models first."
+
+  - name: multi-step
+    if:   {task: analyze}
+    then: {tier: L2}
+    why:  "Analysis against an SOP is multi-hop reasoning."
+
+  - name: quick-text
+    if:   {task: summarize}
+    then: {tier: L1}
+    why:  "Summarisation is cheap work; the small model is enough."
+
+  - name: default
+    if:   {}
+    then: {tier: L1}
+    why:  "Everything else is cheap work."
+
+# If an L1 answer fails verification (bad schema, missing citations), retry once
+# one tier up. This is the PS's "iterate instead of answering once and stopping".
+escalation:
+  L1: L2
+  L2: null

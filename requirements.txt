@@ -1,0 +1,11 @@
+# Full stack. Deliberately torch-free: fastembed is ONNX (~130MB with the model)
+# versus ~2.5GB for sentence-transformers + torch. On a 6GB laptop that matters.
+-r requirements-core.txt
+openai           # OpenAI-compatible client -- NIM, Ollama, anything
+pymupdf          # digital PDF text layer, no model needed
+python-docx
+openpyxl
+python-pptx
+numpy
+fastembed        # local embeddings, ONNX runtime
+pillow
