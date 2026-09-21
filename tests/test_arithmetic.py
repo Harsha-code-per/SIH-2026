@@ -65,3 +65,18 @@ if __name__ == "__main__":
             fn()
             print(f"  ok  {name}")
     print("\narithmetic: all checks passed")
+
+
+def test_floating_point_noise_is_not_shown_to_a_reader():
+    """8.2 - 7.1 is 1.0999999999999996 in IEEE 754. Correct, and unusable in a
+    document someone signs."""
+    from app.tools import calculate, _tidy
+    r = calculate("8.2 - 7.1")
+    assert r["result"] == 1.1, r["result"]
+    assert "0999999" not in r["steps"], r["steps"]
+    assert calculate("79 - 61")["result"] == 18
+    assert calculate("0.1 + 0.2")["result"] == 0.3
+    # Whole results should read as whole numbers, not 18.0
+    assert isinstance(calculate("6 * 3")["result"], int)
+    # Genuine precision must survive.
+    assert _tidy(26.153846153846143) == 26.153846153846

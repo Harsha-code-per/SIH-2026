@@ -48,10 +48,24 @@ def _eval(node: ast.AST) -> float:
     raise ValueError(f"unsupported expression element: {type(node).__name__}")
 
 
+def _tidy(value: float) -> float | int:
+    """Drop binary floating-point noise.
+
+    8.2 - 7.1 is 1.0999999999999996 in IEEE 754. Correct, and unusable in a
+    document a section head signs: an engineering value carries the precision
+    of its inputs, not of its representation. Twelve significant digits is far
+    beyond any instrument here and removes the artefact.
+    """
+    if isinstance(value, int):
+        return value
+    r = round(value, 12)
+    return int(r) if r == int(r) and abs(r) < 1e15 else r
+
+
 def calculate(expression: str) -> dict:
     """Evaluate an arithmetic expression exactly, showing the work."""
     expr = expression.strip().rstrip("=?").strip()
-    value = _eval(ast.parse(expr, mode="eval").body)
+    value = _tidy(_eval(ast.parse(expr, mode="eval").body))
     return {"expression": expr, "result": value,
             "steps": f"{expr} = {value}",
             "engine": "deterministic (no LLM)"}
@@ -101,10 +115,9 @@ def parse_arithmetic(prompt: str) -> tuple[str, dict]:
 
 
 def percent_change(before: float, after: float) -> dict:
-    pct = (after - before) / before * 100
-    return {"before": before, "after": after,
-            "result": round(pct, 4),
-            "steps": f"({after} - {before}) / {before} x 100 = {pct:.4f}%",
+    pct = _tidy(round((after - before) / before * 100, 4))
+    return {"before": before, "after": after, "result": pct,
+            "steps": f"({after} - {before}) / {before} x 100 = {pct}%",
             "engine": "deterministic (no LLM)"}
 
 
