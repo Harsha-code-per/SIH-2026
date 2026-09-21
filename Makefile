@@ -4,9 +4,19 @@ VENV := .venv/bin
 dev:                     ## run the app on the host (no enforcement)
 	$(VENV)/uvicorn app.main:app --reload --port 8117
 
-test:                    ## router truth table + sovereignty checks
-	@$(VENV)/python tests/test_router.py
-	@$(VENV)/python tests/test_sovereignty.py
+test:                    ## every check; sandbox ones need docker
+	@for t in tests/test_*.py; do \
+	  $(VENV)/python $$t >/dev/null 2>&1 && echo "  ok   $$t" || echo "  FAIL $$t"; \
+	done
+
+test-v:                  ## the same, with each assertion named
+	@for t in tests/test_*.py; do echo "== $$t"; $(VENV)/python $$t || exit 1; done
+
+sample:                  ## regenerate the scanned inspection report fixture
+	$(VENV)/python scripts/make_scanned_sample.py
+
+verify-models:           ## check models.yaml against the live catalogue
+	$(VENV)/python -m app.verify_models
 
 proto:                   ## containerised, one pinned egress host
 	docker compose up --build

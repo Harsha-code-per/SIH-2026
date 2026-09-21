@@ -96,6 +96,28 @@ def _signature(name: str, arguments: str) -> str:
         return f"{name}:{arguments}"
 
 
+# A fenced block that the answer presents as program output. Models will happily
+# narrate a plausible-looking result instead of reporting what the sandbox
+# actually printed, and in an engineering context a fabricated number carries
+# exactly the authority of a real one.
+_CLAIMED_OUTPUT = re.compile(
+    r"(?:output|result|prints?|produces?|returns?)\b[^\n]{0,40}\n+```[a-z]*\n(.*?)```",
+    re.I | re.S)
+
+
+def unbacked_output(answer: str, stdouts: list[str]) -> list[str]:
+    """Lines the answer presents as program output that no tool actually printed."""
+    haystack = "\n".join(stdouts)
+    missing = []
+    for block in _CLAIMED_OUTPUT.findall(answer):
+        for line in block.splitlines():
+            line = line.strip()
+            # Ignore blank lines and pure prose; numbers are what matter here.
+            if line and any(ch.isdigit() for ch in line) and line not in haystack:
+                missing.append(line)
+    return missing
+
+
 def _docx_text(path: str) -> str:
     """Read back a generated document, so verification checks what was written
     rather than what the model said it wrote."""
@@ -177,6 +199,7 @@ class Agent:
                     {"role": "user", "content": prompt}]
         evidence: dict[str, dict] = {}
         deliverables: list[dict] = []
+        stdouts: list[str] = []           # what the sandbox really printed
         seen: dict[str, dict] = {}        # call signature -> cached result
         repeats = 0
         narrowed = False
@@ -235,7 +258,7 @@ class Agent:
                 answer = normalise_citations((msg.content or "").strip())
                 return {"answer": answer, "evidence": list(evidence.values()),
                         "deliverables": deliverables,
-                        "verdict": self._verify(answer, evidence, deliverables)}
+                        "verdict": self._verify(answer, evidence, deliverables, stdouts)}
 
             messages.append({
                 "role": "assistant", "content": msg.content or "",
@@ -269,6 +292,12 @@ class Agent:
                         evidence[psg["id"]] = psg
                     self._emit("result", f"{out.get('count', 0)} passages",
                                cites=[psg["cite"] for psg in out.get("passages", [])])
+                elif name == "run_python":
+                    stdouts.append(str(out.get("stdout", "")))
+                    self._emit("result", "sandbox exit "
+                               f"{out.get('exit_code')} · {out.get('isolation', '')}",
+                               stdout=str(out.get("stdout", ""))[:1200],
+                               stderr=str(out.get("stderr", ""))[:400])
                 elif name in ("write_docx", "write_xlsx") and "path" in out:
                     deliverables.append(out)
                     self._emit("result", out["path"], **out)
@@ -284,10 +313,18 @@ class Agent:
                 "evidence": list(evidence.values()), "deliverables": deliverables,
                 "verdict": "ok" if deliverables else "step-limit"}
 
-    def _verify(self, answer: str, evidence: dict, deliverables: list) -> str:
+    def _verify(self, answer: str, evidence: dict, deliverables: list,
+                stdouts: list[str] | None = None) -> str:
         """Cheap post-checks. Each failure is a reason to escalate, not to hide."""
         if not answer and not deliverables:
             return "empty"
+
+        if stdouts:
+            fake = unbacked_output(answer, stdouts)
+            if fake:
+                self._emit("verify", "reported output the sandbox never printed",
+                           lines=fake[:5])
+                return "fabricated-output"
 
         # When a document was produced, the citations that matter are the ones
         # inside it. The chat reply is a receipt ("note created"), and demanding
