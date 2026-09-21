@@ -30,8 +30,9 @@ _CODE = re.compile(
     re.I,
 )
 _ANALYZE = re.compile(
-    r"\b(analy[sz]e|compare|against the sop|assess|evaluate|review|audit|"
-    r"findings?|approval note|inspect)\b",
+    r"\b(analy[sz]e|compare|assess|evaluate|review|audit|findings?|inspect\w*"
+    r"|approval note|sop|procedure|criteri(?:a|on)|clause|acceptance"
+    r"|what does .{0,20}\brequire|who (?:must|should) approve|is .{0,30}(?:above|below|within))\b",
     re.I,
 )
 _SUMMARIZE = re.compile(r"\b(summari[sz]e|tl;?dr|brief|digest|key points)\b", re.I)

@@ -56,7 +56,11 @@ def split_sections(text: str) -> list[tuple[str | None, str]]:
         if m and len(line.strip()) < 90:
             if buf:
                 out.append((current, "\n".join(buf).strip()))
-            current = f"§{m.group(1).strip()}" + (f" {m.group(2).strip()}" if m.group(2) else "")
+            title = m.group(2).strip()
+            # Keep the citation label short enough to read in a table cell.
+            if len(title) > 55:
+                title = title[:52].rsplit(" ", 1)[0] + "…"
+            current = f"§{m.group(1).strip()}" + (f" {title}" if title else "")
             buf = []
         else:
             buf.append(line)
