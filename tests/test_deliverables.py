@@ -62,3 +62,37 @@ if __name__ == "__main__":
             fn()
             print(f"  ok  {name}")
     print("\ndeliverables: all checks passed")
+
+
+def test_content_under_an_alias_is_not_silently_dropped():
+    """A model that writes 'content' instead of 'body' must not lose its text.
+
+    This produced a note that was nothing but headings and source lines.
+    """
+    r = write_docx("Note", [{"heading": "Observation", "content": "Vibration is 8.2 mm/s."}],
+                   filename="_test_alias.docx")
+    text = "\n".join(p.text for p in Document(ROOT / r["path"]).paragraphs)
+    assert "Vibration is 8.2 mm/s." in text
+    (ROOT / r["path"]).unlink()
+
+
+def test_a_section_with_no_recognisable_content_is_an_error():
+    try:
+        write_docx("Note", [{"heading": "Observation", "notes": "oops"}],
+                   filename="_test_bad.docx")
+        assert False, "should have refused a section with no body"
+    except ValueError as e:
+        assert "has no body" in str(e)
+
+
+def test_citations_are_written_bracketed():
+    """Unbracketed ids were not recognised downstream, failing sourced notes."""
+    import sys as _s
+    from app.agent import cited_ids
+    r = write_docx("Note", [{"heading": "Criteria", "body": "Zone D applies.",
+                             "citations": ["Maintenance_SOP_v7.md#7"]}],
+                   filename="_test_cite.docx")
+    text = "\n".join(p.text for p in Document(ROOT / r["path"]).paragraphs)
+    assert "[Maintenance_SOP_v7.md#7]" in text, text
+    assert cited_ids(text) == {"Maintenance_SOP_v7.md#7"}
+    (ROOT / r["path"]).unlink()

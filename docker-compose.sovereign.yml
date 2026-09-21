@@ -1,6 +1,5 @@
-# Sovereign mode. The network is `internal: true`, so Docker installs no default
-# route: reaching the internet is not blocked, it is unroutable. The model runs
-# in-network.
+# Sovereign mode: the gateway is removed entirely, so there is no opening at
+# all, and the model runs in-network.
 #
 #   docker compose -f docker-compose.yml -f docker-compose.sovereign.yml up
 services:
@@ -8,17 +7,20 @@ services:
     environment:
       MODE: sovereign
       MODEL_ENDPOINT: http://ollama:11434/v1
-    depends_on: [ollama]
+    # !override replaces the base list rather than merging, so the gateway
+    # dependency goes away with the gateway.
+    depends_on: !override [ollama]
+
+  egress-gateway:
+    # Never started in this mode: there is no opening at all, not even a
+    # permitted one. The service stays declared so the override stays readable.
+    profiles: [never]
 
   ollama:
     image: ollama/ollama:latest
     volumes: ["./data/models:/root/.ollama"]
-    networks: [wb]
+    networks: [wb-internal]
     deploy:
       resources:
         reservations:
           devices: [{driver: nvidia, count: 1, capabilities: [gpu]}]
-
-networks:
-  wb:
-    internal: true          # <- the whole sovereign claim, in one line

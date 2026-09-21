@@ -128,7 +128,17 @@ def kb_search(query: str, k: int = 6) -> dict:
     """Search local SOPs and manuals. Returns passages with their provenance."""
     if KB.vectors is None:
         KB.load()
-    hits = KB.search(query, k=k)
+    if not KB.chunks:
+        return {"error": "knowledge base is empty -- run the index build first",
+                "query": query, "count": 0, "passages": []}
+    try:
+        hits = KB.search(query, k=k)
+    except Exception as e:
+        # An unavailable index is a broken system, not an empty result set.
+        # Returning zero passages here once let a document be written with
+        # nothing behind it.
+        return {"error": f"retrieval unavailable: {type(e).__name__}: {e}",
+                "query": query, "count": 0, "passages": []}
     return {"query": query, "count": len(hits),
             "passages": [{"id": h["id"], "cite": h["cite"], "score": h["score"],
                           "text": h["text"]} for h in hits]}
@@ -245,6 +255,20 @@ def write_docx(title: str, sections: list[dict], filename: str = "Approval_Note.
     for s in sections:
         if s.get("heading"):
             doc.add_heading(str(s["heading"]), level=1)
+        # Models do not reliably use the key the schema names. Dropping the
+        # content silently produced a note that was nothing but headings and
+        # source lines, so aliases are accepted and an unrecognised shape is
+        # an error rather than an empty section.
+        if not s.get("body"):
+            for alias in ("text", "content", "paragraphs", "value"):
+                if s.get(alias):
+                    v = s[alias]
+                    s["body"] = "\n\n".join(map(str, v)) if isinstance(v, list) else str(v)
+                    break
+        if s.get("heading") and not s.get("body") and not s.get("table"):
+            raise ValueError(
+                f"section {s.get('heading')!r} has no body. Put the text in "
+                f"'body' as a string; got keys {sorted(s)}")
         if s.get("body"):
             for kind, chunk in _split_markdown_tables(str(s["body"])):
                 if kind == "table":
@@ -256,8 +280,12 @@ def write_docx(title: str, sections: list[dict], filename: str = "Approval_Note.
         if s.get("table"):
             _add_table(doc, s["table"])
         if s.get("citations"):
+            # Bracketed, because that is the form everything downstream reads:
+            # an unbracketed id was not recognised as a citation and a properly
+            # sourced note was failing verification.
+            cites = [c if c.startswith("[") else f"[{c}]" for c in s["citations"]]
             p = doc.add_paragraph()
-            r = p.add_run("Source: " + "; ".join(s["citations"]))
+            r = p.add_run("Source: " + " ".join(cites))
             r.italic = True
             r.font.size = Pt(9)
 

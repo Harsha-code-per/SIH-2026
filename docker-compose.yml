@@ -1,24 +1,40 @@
-# Prototype mode: the app may reach exactly one host, enforced by
-# egress/sentinel.sh against this pinned subnet. Everything else is dropped
-# and logged.
+# Default stack: the app has no route out.
 #
-#   docker compose up --build
-#   sudo egress/sentinel.sh install prototype
+#   docker compose up --build        app + controlled-egress gateway
+#
+# The app container is on `wb-internal`, which Docker marks internal, so no
+# default route exists for it. The gateway is the only container on both
+# networks and forwards a single destination. Reaching anything else is not
+# blocked by a rule; it is unroutable.
 services:
   app:
     build: .
     environment:
       MODE: prototype
       NVIDIA_API_KEY: ${NVIDIA_API_KEY:-}
-    ports: ["8117:8117"]
     volumes:
       - ./data:/srv/data
       - /var/run/docker.sock:/var/run/docker.sock   # to launch the code sandbox
     cap_add: [NET_RAW, NET_ADMIN]                   # tcpdump observer only
-    networks: [wb]
+    depends_on: [egress-gateway]
+    networks: [wb-internal]
+
+  egress-gateway:
+    image: nginx:alpine
+    # Carries browser traffic in, and exactly one destination out.
+    ports: ["8117:8117"]
+    volumes:
+      - ./egress/proxy.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      wb-internal:
+        # The app resolves the allowed host to this container, so its traffic
+        # reaches the gateway rather than the internet.
+        aliases: [integrate.api.nvidia.com]
+      wb-egress: {}
 
 networks:
-  wb:
+  wb-internal:
+    internal: true          # <- no default route for anything on this network
     ipam:
-      config:
-        - subnet: 172.28.117.0/24
+      config: [{subnet: 172.28.117.0/24}]
+  wb-egress: {}

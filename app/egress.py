@@ -148,6 +148,16 @@ class EgressMonitor:
         ))
         return result
 
+    @staticmethod
+    def _has_default_route() -> bool:
+        """Read the routing table directly; `ip` is not in a slim image."""
+        try:
+            with open("/proc/net/route") as f:
+                return any(parts[1] == "00000000"
+                           for parts in (l.split() for l in f.readlines()[1:]) if parts)
+        except OSError:
+            return True    # cannot tell, so assume the worst
+
     def enforcement(self) -> dict:
         """Is anything actually stopping packets, or have none simply tried?
 
@@ -155,16 +165,13 @@ class EgressMonitor:
         outbound calls looks identical to one that cannot. Containment is only
         claimed when something is genuinely in the way.
         """
-        if self.mode == "sovereign" and not self.allowlist:
-            # `internal: true` means Docker installs no default route at all.
-            try:
-                with open("/proc/net/route") as f:
-                    has_default = any(l.split()[1] == "00000000"
-                                      for l in f.readlines()[1:] if l.split())
-            except OSError:
-                has_default = True
-            if not has_default:
-                return {"active": True, "kind": "no default route (internal network)"}
+        # The strongest form: no default route exists, so the internet is not
+        # blocked, it is unreachable. Docker gives this to any container on a
+        # network marked `internal: true`. Whatever permitted traffic there is
+        # leaves through a gateway that is the only container on both networks.
+        if not self._has_default_route():
+            via = f" · via gateway to {self.allowlist[0]}" if self.allowlist else ""
+            return {"active": True, "kind": "no default route" + via}
         try:
             r = subprocess.run(["nft", "list", "table", "inet", "sovereign_wb"],
                                capture_output=True, text=True, timeout=5)

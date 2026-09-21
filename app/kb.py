@@ -11,6 +11,7 @@ ponytail: in-memory cosine, O(n) per query. Swap to sqlite-vec past ~50k chunks.
 from __future__ import annotations
 
 import json
+import os
 import re
 from dataclasses import dataclass, asdict
 from pathlib import Path
@@ -101,7 +102,11 @@ class KnowledgeBase:
         # pay when something is actually indexed or queried.
         if self._embedder is None:
             from fastembed import TextEmbedding
-            self._embedder = TextEmbedding(model_name=self._embed_model)
+            # cache_dir is where the image baked the weights. Without it
+            # fastembed reaches for HuggingFace, which cannot work air-gapped.
+            self._embedder = TextEmbedding(
+                model_name=self._embed_model,
+                cache_dir=os.environ.get("FASTEMBED_CACHE_PATH") or None)
         return self._embedder
 
     def embed(self, texts: list[str]) -> np.ndarray:

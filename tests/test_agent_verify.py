@@ -51,3 +51,32 @@ def test_search_budget_is_small_enough_to_leave_room_to_answer():
     assert SEARCH_BUDGET < MAX_STEPS / 2, (
         f"a model could spend {SEARCH_BUDGET} of {MAX_STEPS} steps searching "
         "and never reach the deliverable")
+
+
+def test_a_task_that_retrieved_nothing_is_not_ok():
+    """Zero evidence after searching means ungrounded, however good it looks.
+
+    Passing such a run because there were no citations to contradict would
+    invert the check: the less it retrieved, the easier it would pass.
+    """
+    from app.agent import Agent
+    from app.router import Router
+    a = Agent(Router(), llm=None)
+    v = a._verify("Note written.", evidence={}, deliverables=[{"path": "x.docx"}],
+                  stdouts=None, searched=True, retrieval_broken="retrieval unavailable")
+    assert v == "ungrounded", v
+    # Not searching at all is a different case: arithmetic needs no sources.
+    assert a._verify("42", evidence={}, deliverables=[], stdouts=None,
+                     searched=False) == "ok"
+
+
+def test_repairable_verdicts_have_actionable_instructions():
+    """A retry needs to say what to do differently, or it is just a re-roll."""
+    from app.agent import REPAIRABLE
+    assert set(REPAIRABLE) == {"uncited", "invented-citation", "fabricated-output"}
+    for verdict, hint in REPAIRABLE.items():
+        assert len(hint) > 60, verdict
+        assert any(w in hint.lower() for w in ("again", "must", "use only")), verdict
+    # "empty" and "step-limit" are not listed: retrying them unchanged is a
+    # re-roll, not a repair.
+    assert "empty" not in REPAIRABLE and "step-limit" not in REPAIRABLE

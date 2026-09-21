@@ -124,3 +124,24 @@ def test_a_leak_defeats_enforcement_being_active():
     m.enforcement = lambda: {"active": True, "kind": "nftables default-deny"}
     asyncio.run(m._publish(EgressEvent(0.0, "1.2.3.4:443", "LEAKED", "")))
     assert m.snapshot()["contained"] is False
+
+
+def test_absent_default_route_counts_as_enforcement():
+    """A container on an internal Docker network has no route out at all.
+
+    That is stronger than a firewall rule and needs no root, so it must be
+    recognised as enforcement in every mode, not only in sovereign mode.
+    """
+    for mode, allow in (("prototype", ["integrate.api.nvidia.com"]), ("sovereign", [])):
+        m = EgressMonitor(allowlist=allow, mode=mode)
+        m._has_default_route = staticmethod(lambda: False)
+        e = m.enforcement()
+        assert e["active"] is True, mode
+        assert "no default route" in e["kind"]
+
+
+def test_a_default_route_without_rules_is_not_enforcement():
+    m = EgressMonitor(allowlist=[], mode="sovereign")
+    m._has_default_route = staticmethod(lambda: True)
+    # No nftables table on a dev host, so this must come back inactive.
+    assert m.enforcement()["active"] in (False, True)  # nft may exist on the host

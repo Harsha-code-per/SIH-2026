@@ -29,6 +29,21 @@ from .router import Router, Decision
 
 MAX_STEPS = 16
 
+# Verdicts that a second attempt can plausibly fix, with the instruction that
+# addresses each. Anything not listed here is returned as it stands rather than
+# retried in the hope that it improves.
+REPAIRABLE = {
+    "uncited": "Every factual claim in the document must carry the passage id "
+               "it came from, written as [Document.md#12]. Put the ids in the "
+               "body text and in the citations list of each section. Call "
+               "write_docx again with the citations included.",
+    "invented-citation": "One or more citations do not match any passage you "
+                         "retrieved. Use only ids that appear in the search "
+                         "results you were given, and write the document again.",
+    "fabricated-output": "You reported program output that the sandbox did not "
+                         "print. Run the code and report exactly what it printed.",
+}
+
 # A model that repeats a tool call it has already made is not making progress,
 # whichever tool it is. Retrieval is the usual offender, but the same loop
 # appears on arithmetic. So the guard is general rather than per-tool, and it
@@ -64,8 +79,12 @@ in this order, each as a separate entry in `sections`:
   Recommendation       the specific action and a target date
   Approval routing     who must sign, per the SOP
 
-Put the measurements in a table where there is more than one value. Attach
-citations to the criteria and routing sections at minimum.
+Put the measurements in a table where there is more than one value.
+
+Every section that states a fact from a document must carry its passage id,
+written as [Maintenance_SOP_v7.md#7], both in the body text and in that
+section's citations list. A note whose criteria cannot be traced back to the
+SOP is not usable by the person who has to sign it.
 
 Be terse. An engineer is reading this, not a customer."""
 
@@ -85,7 +104,13 @@ class Step:
 # Models bracket citations in whatever style their training favoured -- ASCII
 # [x], CJK full-width, or parentheses. Matching only one style silently reports
 # a well-cited answer as uncited and escalates it for no reason.
-_CITE = re.compile(r"[\[\u3010\uff3b(]\s*([^\[\]\u3010\u3011\uff3b\uff3d()]+?#\d+)\s*[\]\u3011\uff3d)]")
+_CITE = re.compile(
+    r"[\[\u3010\uff3b(]\s*([^\[\]\u3010\u3011\uff3b\uff3d()]+?#\d+)\s*[\]\u3011\uff3d)]"
+    r"|(?<![\[\w])([\w.\-]+\.(?:md|pdf|txt)#\d+)")
+
+
+def _first(groups) -> str:
+    return next(g for g in groups if g)
 
 
 def _signature(name: str, arguments: str) -> str:
@@ -134,12 +159,12 @@ def _docx_text(path: str) -> str:
 
 
 def cited_ids(text: str) -> set[str]:
-    return {m.strip() for m in _CITE.findall(text)}
+    return {_first(m).strip() for m in _CITE.findall(text)}
 
 
 def normalise_citations(text: str) -> str:
     """Rewrite every citation style to [id] so deliverables read consistently."""
-    return _CITE.sub(lambda m: f"[{m.group(1).strip()}]", text)
+    return _CITE.sub(lambda m: f"[{_first(m.groups()).strip()}]", text)
 
 
 class Agent:
@@ -186,6 +211,17 @@ class Agent:
                            reason=result["verdict"], model=up.model_name)
                 result = await self._converse(prompt, up)
                 decision = up
+            elif result["verdict"] in REPAIRABLE:
+                # At the top tier there is nowhere to escalate, so the run is
+                # repaired in place rather than handed back flawed. This is the
+                # iteration the task actually needs: the work was right, the
+                # sourcing was not.
+                self._emit("retry", f"repairing: {result['verdict']}",
+                           hint=REPAIRABLE[result["verdict"]][:80])
+                repaired = await self._converse(
+                    prompt, decision, repair=REPAIRABLE[result["verdict"]])
+                if repaired["verdict"] == "ok" or not result["deliverables"]:
+                    result = repaired
 
         self._emit("done", result["verdict"])
         return {"answer": result["answer"], "decision": decision.as_dict(),
@@ -194,12 +230,16 @@ class Agent:
                 "deliverables": result["deliverables"],
                 "verdict": result["verdict"]}
 
-    async def _converse(self, prompt: str, decision: Decision) -> dict:
+    async def _converse(self, prompt: str, decision: Decision,
+                        repair: str | None = None) -> dict:
         messages = [{"role": "system", "content": SYSTEM},
-                    {"role": "user", "content": prompt}]
+                    {"role": "user", "content": prompt
+                     + (f"\n\nIMPORTANT: {repair}" if repair else "")}]
         evidence: dict[str, dict] = {}
         deliverables: list[dict] = []
         stdouts: list[str] = []           # what the sandbox really printed
+        searched = False                  # did the task ask the knowledge base?
+        retrieval_broken: str | None = None
         seen: dict[str, dict] = {}        # call signature -> cached result
         repeats = 0
         narrowed = False
@@ -258,7 +298,8 @@ class Agent:
                 answer = normalise_citations((msg.content or "").strip())
                 return {"answer": answer, "evidence": list(evidence.values()),
                         "deliverables": deliverables,
-                        "verdict": self._verify(answer, evidence, deliverables, stdouts)}
+                        "verdict": self._verify(answer, evidence, deliverables, stdouts,
+                                                searched, retrieval_broken)}
 
             messages.append({
                 "role": "assistant", "content": msg.content or "",
@@ -288,10 +329,15 @@ class Agent:
                 seen[sig] = out
 
                 if name == "kb_search":
+                    searched = True
+                    if out.get("error"):
+                        retrieval_broken = out["error"]
+                        self._emit("error", "retrieval failed", error=out["error"])
                     for psg in out.get("passages", []):
                         evidence[psg["id"]] = psg
-                    self._emit("result", f"{out.get('count', 0)} passages",
-                               cites=[psg["cite"] for psg in out.get("passages", [])])
+                    if not out.get("error"):
+                        self._emit("result", f"{out.get('count', 0)} passages",
+                                   cites=[psg["cite"] for psg in out.get("passages", [])])
                 elif name == "run_python":
                     stdouts.append(str(out.get("stdout", "")))
                     self._emit("result", "sandbox exit "
@@ -314,10 +360,19 @@ class Agent:
                 "verdict": "ok" if deliverables else "step-limit"}
 
     def _verify(self, answer: str, evidence: dict, deliverables: list,
-                stdouts: list[str] | None = None) -> str:
+                stdouts: list[str] | None = None, searched: bool = False,
+                retrieval_broken: str | None = None) -> str:
         """Cheap post-checks. Each failure is a reason to escalate, not to hide."""
         if not answer and not deliverables:
             return "empty"
+
+        # A task that reached for the knowledge base and got nothing back is
+        # ungrounded, whatever it went on to produce. Passing it because there
+        # were no citations to contradict would invert the whole check.
+        if searched and not evidence:
+            self._emit("verify", "retrieval returned nothing; output is ungrounded",
+                       reason=retrieval_broken or "no passages matched")
+            return "ungrounded"
 
         if stdouts:
             fake = unbacked_output(answer, stdouts)
