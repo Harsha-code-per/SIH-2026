@@ -20,6 +20,7 @@ import os
 import re
 import shutil
 import socket
+import subprocess
 import time
 from dataclasses import dataclass, asdict
 
@@ -147,9 +148,38 @@ class EgressMonitor:
         ))
         return result
 
+    def enforcement(self) -> dict:
+        """Is anything actually stopping packets, or have none simply tried?
+
+        Observing zero leaks proves nothing on its own -- a machine that made no
+        outbound calls looks identical to one that cannot. Containment is only
+        claimed when something is genuinely in the way.
+        """
+        if self.mode == "sovereign" and not self.allowlist:
+            # `internal: true` means Docker installs no default route at all.
+            try:
+                with open("/proc/net/route") as f:
+                    has_default = any(l.split()[1] == "00000000"
+                                      for l in f.readlines()[1:] if l.split())
+            except OSError:
+                has_default = True
+            if not has_default:
+                return {"active": True, "kind": "no default route (internal network)"}
+        try:
+            r = subprocess.run(["nft", "list", "table", "inet", "sovereign_wb"],
+                               capture_output=True, text=True, timeout=5)
+            if r.returncode == 0 and "drop" in r.stdout:
+                return {"active": True, "kind": "nftables default-deny"}
+        except (OSError, subprocess.SubprocessError):
+            pass
+        return {"active": False,
+                "kind": "none -- run: sudo egress/sentinel.sh install " + self.mode}
+
     def snapshot(self) -> dict:
         count = lambda v: sum(1 for e in self.events if e.verdict == v)
         leaked = count("LEAKED")
+        enf = self.enforcement()
+        observed = self.status.startswith("MONITORING")
         return {
             "mode": self.mode,
             "status": self.status,
@@ -157,6 +187,11 @@ class EgressMonitor:
             "allowed_count": count("ALLOWED"),
             "blocked_count": count("BLOCKED"),
             "leaked_count": leaked,
-            "contained": self.status.startswith("MONITORING") and leaked == 0,
+            "observed": observed,
+            "enforced": enf["active"],
+            "enforcement": enf["kind"],
+            # Both halves are required. Watching nothing leave is not the same
+            # as nothing being able to leave.
+            "contained": observed and enf["active"] and leaked == 0,
             "events": [e.as_dict() for e in self.events[-50:]],
         }

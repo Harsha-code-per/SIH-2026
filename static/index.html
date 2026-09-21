@@ -160,6 +160,7 @@
       <h2>Containment<span class="spacer"></span><span class="muted mono" id="e-status"></span></h2>
       <div class="body">
         <dl class="kv">
+          <dt>enforcement</dt><dd id="e-enf" class="mono">…</dd>
           <dt>allowlist</dt><dd id="e-allow" class="mono">…</dd>
           <dt>allowed</dt><dd id="e-allowed">0</dd>
           <dt>blocked</dt><dd id="e-blocked">0</dd>
@@ -427,7 +428,10 @@ function renderSnapshot(s) {
   const good = s.contained;
   p.className = "pill " + (good ? "ok" : s.leaked_count ? "bad" : "warn");
   p.lastElementChild.textContent = good ? "contained"
-    : s.leaked_count ? `${s.leaked_count} leaked` : "unverified";
+    : s.leaked_count ? `${s.leaked_count} leaked`
+    : !s.enforced ? "unenforced" : "unverified";
+  $("#e-enf").textContent = s.enforcement ?? "—";
+  $("#e-enf").style.color = s.enforced ? "var(--ok)" : "var(--warn)";
   $("#e-allow").textContent = s.allowlist.join(", ");
   for (const [k, v] of [["allowed", s.allowed_count], ["blocked", s.blocked_count], ["leaked", s.leaked_count]])
     $("#e-" + k).textContent = v;

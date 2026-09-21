@@ -12,7 +12,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import yaml
-from app.egress import EgressMonitor
+from app.egress import EgressMonitor, EgressEvent
 from app.router import Router
 
 CFG = yaml.safe_load((Path(__file__).resolve().parent.parent / "models.yaml").read_text())
@@ -83,6 +83,7 @@ def test_local_traffic_is_never_counted_as_egress():
 def test_containment_requires_an_observer_and_zero_leaks():
     """`contained` must be false when unobserved, even with a clean event log."""
     m = EgressMonitor(allowlist=[], mode="sovereign")
+    m.enforcement = lambda: {"active": True, "kind": "nftables default-deny"}
     m.status = "UNVERIFIED (tcpdump not installed)"
     assert m.snapshot()["contained"] is False, "unobserved must never read as contained"
     m.status = "MONITORING"
@@ -101,3 +102,25 @@ if __name__ == "__main__":
             fn()
             print(f"  ok  {name}")
     print("\nsovereignty: all checks passed")
+
+
+def test_containment_needs_enforcement_not_just_quiet():
+    """Observing zero leaks proves nothing if nothing is in the way.
+
+    A machine that happened to make no outbound calls looks identical to one
+    that cannot make them. Only the second is contained.
+    """
+    m = EgressMonitor(allowlist=[], mode="sovereign")
+    m.status = "MONITORING"
+    m.enforcement = lambda: {"active": False, "kind": "none"}
+    assert m.snapshot()["contained"] is False, "quiet is not contained"
+    m.enforcement = lambda: {"active": True, "kind": "nftables default-deny"}
+    assert m.snapshot()["contained"] is True
+
+
+def test_a_leak_defeats_enforcement_being_active():
+    m = EgressMonitor(allowlist=[], mode="sovereign")
+    m.status = "MONITORING"
+    m.enforcement = lambda: {"active": True, "kind": "nftables default-deny"}
+    asyncio.run(m._publish(EgressEvent(0.0, "1.2.3.4:443", "LEAKED", "")))
+    assert m.snapshot()["contained"] is False
