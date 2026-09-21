@@ -5,3 +5,6 @@ data/out/*
 data/models/
 !data/**/.gitkeep
 .env
+data/kb_index.npz
+data/kb_meta.json
+data/audit.jsonl

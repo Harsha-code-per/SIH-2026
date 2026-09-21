@@ -43,8 +43,12 @@ models:
     caps: [vision, ocr, tables]
     ctx: 8192
     max_tokens: 4096
-    why: "Scanned pages, tables, handwriting. Purpose-built beats general VLM."
-    prototype: nvidia/nemotron-parse-2.0
+    why: "Scanned pages, tables, handwriting. Verbatim transcription, not description."
+    # nemotron-parse-2.0 is a purpose-built parser with its own request shape; over
+    # plain chat-completions it degenerated into repeated tokens and then 502'd.
+    # The omni model transcribes the same page verbatim, tables intact. On-premise
+    # the 0.9B document model is the right tool -- see docs/model-benchmark.md.
+    prototype: nvidia/nemotron-3-nano-omni-30b-a3b-reasoning
     sovereign: glm-ocr:0.9b
 
   - id: vision

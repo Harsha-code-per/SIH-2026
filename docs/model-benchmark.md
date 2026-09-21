@@ -34,3 +34,27 @@ re-benchmarked on the target GPU.
 Of 81 models listed by `/v1/models`, only 11 accept completions on this key.
 `app/verify_models.py` checks the registry against the catalogue; the sweep that
 found the usable subset is not committed because it burns quota.
+
+## Vision: transcribing a scanned page
+
+Same scanned page (`scripts/make_scanned_sample.py`, no text layer), scored on
+whether five known values survive transcription: `8.2`, `P-204`, `2960`, `79`,
+`CM/CDU/2026/0847`.
+
+| Model | key values | output | behaviour |
+|---|---|---|---|
+| `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning` | **5/5** | 1313 b | verbatim, table structure preserved |
+| `meta/llama-3.2-11b-vision-instruct` | 4/5 | 2046 b | describes the page rather than transcribing it |
+| `nvidia/nemotron-parse-2.0` | — | — | repeated tokens, then 502 |
+
+`nemotron-parse-2.0` is a purpose-built document parser with its own request
+shape; driven through plain chat-completions it degenerates. It is the right
+class of model — a 0.9B document VLM beats general VLMs on OmniDocBench — but
+it needs its own client, which is work for the on-premise build rather than the
+prototype.
+
+The distinction that matters for an inspection report is transcription versus
+description. Llama-3.2-vision writes *about* the page ("the report details
+vibration readings"); the omni model reproduces the numbers. For a document
+whose whole value is its numbers, only the first is usable — so it takes the
+LV tier, and Llama-3.2-vision keeps LV2 where describing a drawing is the job.

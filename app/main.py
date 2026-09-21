@@ -50,7 +50,8 @@ async def status():
         "egress": monitor.snapshot(),
         "models": [
             {"id": m["id"], "tier": m["tier"], "caps": m["caps"],
-             "name": router.resolve(m), "why": m["why"]}
+             "name": router.resolve(m), "why": m["why"],
+             "max_tokens": m.get("max_tokens")}
             for m in router.models
         ],
         "rules": [{"name": r["name"], "why": r["why"]} for r in router.routing_rules],

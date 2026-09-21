@@ -6,82 +6,117 @@
 <title>Sovereign AI Workbench</title>
 <style>
   :root{
-    --bg:#0b0f14; --panel:#111823; --panel-2:#0e1520; --line:#1e2b3a;
-    --fg:#dbe6f2; --muted:#7d8fa3; --accent:#38bdf8; --ok:#34d399;
-    --warn:#fbbf24; --bad:#f87171; --mono:ui-monospace,"JetBrains Mono",Menlo,monospace;
+    --bg:#0a0e14; --panel:#111823; --panel-2:#0d141e; --line:#1d2937;
+    --fg:#dce7f3; --muted:#7b8fa5; --accent:#38bdf8; --ok:#34d399;
+    --warn:#fbbf24; --bad:#f87171; --violet:#a78bfa;
+    --mono:ui-monospace,"JetBrains Mono",Menlo,Consolas,monospace;
   }
+  :root:not([data-theme="light"]) { color-scheme: dark; }
   :root[data-theme="light"]{
-    --bg:#f6f8fb; --panel:#fff; --panel-2:#eef2f7; --line:#d7e0ea;
-    --fg:#0f1b2a; --muted:#5a6b7d; --accent:#0369a1;
+    color-scheme: light;
+    --bg:#f5f8fb; --panel:#fff; --panel-2:#eef3f8; --line:#d5e0ea;
+    --fg:#0d1a27; --muted:#55687b; --accent:#0369a1;
   }
   *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--fg);
-       font:14px/1.5 ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif}
-  header{display:flex;align-items:center;gap:16px;flex-wrap:wrap;
-         padding:12px 16px;border-bottom:1px solid var(--line);background:var(--panel)}
-  h1{font-size:15px;margin:0;letter-spacing:.14em;text-transform:uppercase;font-weight:650}
+  html,body{margin:0;background:var(--bg);color:var(--fg)}
+  body{font:14px/1.55 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+  header{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 16px;
+         border-bottom:1px solid var(--line);background:var(--panel);position:sticky;top:0;z-index:5}
+  h1{font-size:14px;margin:0;letter-spacing:.15em;text-transform:uppercase;font-weight:650}
   .sub{color:var(--muted);font-size:12px}
   .spacer{flex:1}
-  .pill{font:11px/1 var(--mono);padding:6px 10px;border-radius:999px;
-        border:1px solid var(--line);background:var(--panel-2);white-space:nowrap}
+  .pill{font:11px/1 var(--mono);padding:6px 10px;border-radius:999px;border:1px solid var(--line);
+        background:var(--panel-2);white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
   .pill.ok{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 40%,transparent)}
-  .pill.bad{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 40%,transparent)}
+  .pill.bad{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 45%,transparent)}
   .pill.warn{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 40%,transparent)}
-  main{display:grid;grid-template-columns:1fr 380px;gap:16px;padding:16px;
-       max-width:1500px;margin:0 auto}
-  @media(max-width:900px){main{grid-template-columns:1fr;padding:16px}}
-  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
-  .card h2{margin:0;padding:10px 14px;font-size:11px;letter-spacing:.12em;
-           text-transform:uppercase;color:var(--muted);
-           border-bottom:1px solid var(--line);background:var(--panel-2);
+  .dot{width:7px;height:7px;border-radius:50%;background:currentColor;flex:none}
+  main{display:grid;grid-template-columns:minmax(0,1fr) 390px;gap:14px;padding:14px;
+       max-width:1560px;margin:0 auto;align-items:start}
+  @media(max-width:1000px){main{grid-template-columns:minmax(0,1fr)}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;
+        overflow:hidden;margin-bottom:14px}
+  .card>h2{margin:0;padding:9px 13px;font-size:11px;letter-spacing:.11em;text-transform:uppercase;
+           color:var(--muted);border-bottom:1px solid var(--line);background:var(--panel-2);
            display:flex;align-items:center;gap:8px}
-  .card .body{padding:14px}
-  textarea{width:100%;min-height:86px;resize:vertical;background:var(--panel-2);
-           color:var(--fg);border:1px solid var(--line);border-radius:8px;
-           padding:10px 12px;font:14px/1.5 inherit}
+  .card>h2 .spacer{flex:1}
+  .body{padding:13px}
+  textarea{width:100%;min-height:80px;resize:vertical;background:var(--panel-2);color:var(--fg);
+           border:1px solid var(--line);border-radius:8px;padding:10px 12px;font:14px/1.55 inherit}
   textarea:focus{outline:2px solid var(--accent);outline-offset:-1px}
-  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px}
-  button{background:var(--accent);color:#04121c;border:0;border-radius:7px;
-         padding:8px 14px;font-weight:600;font-size:13px;cursor:pointer}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:9px}
+  button{background:var(--accent);color:#04121c;border:0;border-radius:7px;padding:8px 14px;
+         font-weight:600;font-size:13px;cursor:pointer;font-family:inherit}
   button.ghost{background:transparent;color:var(--fg);border:1px solid var(--line)}
   button.danger{background:transparent;color:var(--bad);
                 border:1px solid color-mix(in srgb,var(--bad) 45%,transparent)}
-  button:hover{filter:brightness(1.08)} button:active{transform:translateY(1px)}
-  .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  button:hover:not(:disabled){filter:brightness(1.1)}
+  .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px}
   .chip{font-size:12px;padding:5px 9px;border-radius:6px;border:1px solid var(--line);
-        background:var(--panel-2);color:var(--muted);cursor:pointer}
+        background:var(--panel-2);color:var(--muted);cursor:pointer;font-family:inherit}
   .chip:hover{color:var(--fg);border-color:var(--accent)}
-  .kv{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font:12px/1.6 var(--mono)}
-  .kv dt{color:var(--muted)} .kv dd{margin:0;word-break:break-word}
-  .tier{display:inline-block;font:700 12px/1 var(--mono);padding:5px 9px;border-radius:6px;
+  .chip .t{color:var(--accent);font:700 10px var(--mono);margin-right:5px}
+  .kv{display:grid;grid-template-columns:auto minmax(0,1fr);gap:5px 12px;font:12px/1.6 var(--mono);margin:0}
+  .kv dt{color:var(--muted)} .kv dd{margin:0;overflow-wrap:anywhere}
+  .tier{display:inline-block;font:700 11px/1 var(--mono);padding:5px 8px;border-radius:5px;
         background:color-mix(in srgb,var(--accent) 18%,transparent);color:var(--accent)}
-  .why{margin-top:10px;padding:9px 11px;border-left:2px solid var(--accent);
-       background:var(--panel-2);border-radius:0 6px 6px 0;font-size:12.5px;color:var(--muted)}
-  ul.log{list-style:none;margin:0;padding:0;font:11.5px/1.7 var(--mono);
-         max-height:260px;overflow:auto}
+  .tier.L0{background:color-mix(in srgb,var(--ok) 18%,transparent);color:var(--ok)}
+  .tier.LV,.tier.LV2{background:color-mix(in srgb,var(--violet) 20%,transparent);color:var(--violet)}
+  .why{margin-top:9px;padding:8px 11px;border-left:2px solid var(--accent);background:var(--panel-2);
+       border-radius:0 6px 6px 0;font-size:12.5px;color:var(--muted)}
+  ol.trace{list-style:none;margin:0;padding:0;font-size:12.5px;max-height:420px;overflow:auto}
+  ol.trace li{display:flex;gap:9px;padding:6px 2px;border-bottom:1px solid var(--line);align-items:flex-start}
+  ol.trace li:last-child{border:0}
+  .n{color:var(--muted);font:11px var(--mono);flex:0 0 22px;text-align:right;padding-top:2px}
+  .k{flex:0 0 74px;font:700 10px/1.5 var(--mono);text-transform:uppercase;letter-spacing:.05em;padding-top:2px}
+  .k.route{color:var(--accent)} .k.tool{color:var(--violet)} .k.result{color:var(--muted)}
+  .k.verify{color:var(--ok)} .k.escalate,.k.retry{color:var(--warn)} .k.done{color:var(--ok)}
+  .k.error{color:var(--bad)}
+  .msg{flex:1;min-width:0}
+  .msg .x{color:var(--muted);font:11px var(--mono);display:block;overflow-wrap:anywhere;margin-top:2px}
+  ul.log{list-style:none;margin:0;padding:0;font:11.5px/1.65 var(--mono);max-height:210px;overflow:auto}
   ul.log li{display:flex;gap:8px;padding:3px 0;border-bottom:1px solid var(--line)}
   ul.log li:last-child{border:0}
-  .v{flex:0 0 62px;font-weight:700}
+  .v{flex:0 0 58px;font-weight:700}
   .v.BLOCKED{color:var(--ok)} .v.ALLOWED{color:var(--warn)}
   .v.LEAKED{color:var(--bad);font-weight:800} .v.LOCAL{color:var(--muted)}
-  .muted{color:var(--muted)} .mono{font-family:var(--mono)}
-  .empty{color:var(--muted);font-size:12.5px;font-style:italic}
   table{width:100%;border-collapse:collapse;font-size:12.5px}
-  th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}
-  th{color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;
-     letter-spacing:.08em}
-  td.mono{font-family:var(--mono);font-size:11.5px}
+  th,td{text-align:left;padding:5px 7px;border-bottom:1px solid var(--line)}
+  th{color:var(--muted);font-weight:600;font-size:10.5px;text-transform:uppercase;letter-spacing:.07em}
+  td.mono,.mono{font-family:var(--mono);font-size:11.5px}
+  .muted{color:var(--muted)}
+  .empty{color:var(--muted);font-size:12.5px;font-style:italic}
+  .answer{white-space:pre-wrap;font-size:13.5px;line-height:1.6;overflow-wrap:anywhere}
+  .answer code{font-family:var(--mono);font-size:12px;background:var(--panel-2);padding:1px 4px;border-radius:3px}
+  .cite{font:11px var(--mono);color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent);
+        padding:1px 5px;border-radius:4px;cursor:help}
+  .ev{border:1px solid var(--line);border-radius:7px;padding:9px 11px;margin-bottom:7px;background:var(--panel-2)}
+  .ev .h{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+  .ev .id{font:700 11px var(--mono);color:var(--accent)}
+  .ev .sc{font:11px var(--mono);color:var(--muted);margin-left:auto}
+  .ev .tx{font-size:12px;color:var(--muted);margin-top:5px;max-height:58px;overflow:hidden}
+  a.dl{display:inline-flex;align-items:center;gap:7px;padding:9px 12px;border-radius:7px;
+       background:color-mix(in srgb,var(--ok) 15%,transparent);color:var(--ok);text-decoration:none;
+       border:1px solid color-mix(in srgb,var(--ok) 35%,transparent);font-weight:600;font-size:13px}
+  .tabs{display:flex;gap:4px} .tabs button{padding:5px 10px;font-size:11.5px}
+  .tabs button[aria-selected="true"]{background:var(--accent);color:#04121c}
+  .tabs button[aria-selected="false"]{background:transparent;color:var(--muted);border:1px solid var(--line)}
+  .spin{display:inline-block;width:11px;height:11px;border:2px solid currentColor;
+        border-right-color:transparent;border-radius:50%;animation:s .7s linear infinite}
+  @keyframes s{to{transform:rotate(360deg)}}
+  @media (prefers-reduced-motion: reduce){.spin{animation:none}}
 </style>
 </head>
 <body>
 <header>
   <h1>Sovereign AI Workbench</h1>
-  <span class="sub">PS 26117 &middot; MRPL</span>
+  <span class="sub">PS 26117 · MRPL</span>
   <span class="spacer"></span>
-  <span class="pill" id="p-mode">mode &middot; &hellip;</span>
-  <span class="pill" id="p-endpoint">endpoint &middot; &hellip;</span>
-  <span class="pill" id="p-egress">egress &middot; &hellip;</span>
-  <button class="ghost" id="theme" aria-label="Toggle theme">&#9788;</button>
+  <span class="pill" id="p-mode"><span class="dot"></span><span>…</span></span>
+  <span class="pill" id="p-endpoint">…</span>
+  <span class="pill" id="p-egress"><span class="dot"></span><span>…</span></span>
+  <button class="ghost" id="theme" title="Toggle theme">◐</button>
 </header>
 
 <main>
@@ -91,157 +126,323 @@
       <div class="body">
         <textarea id="prompt" placeholder="Describe the task. The router picks the computational path before anything runs."></textarea>
         <div class="row">
-          <button id="go">Route task</button>
-          <label class="chip"><input type="checkbox" id="hasimg"> attach image/scan</label>
+          <button id="go">Run task</button>
+          <button class="ghost" id="stop" disabled>Stop</button>
+          <label class="chip"><input type="checkbox" id="hasimg"> attach image / scan</label>
+          <span class="spacer"></span>
+          <span class="muted" style="font-size:12px">⌘/Ctrl + Enter</span>
         </div>
         <div class="chips" id="examples"></div>
       </div>
     </section>
 
-    <section class="card" style="margin-top:16px">
-      <h2>Routing decision</h2>
-      <div class="body" id="decision"><p class="empty">No task routed yet.</p></div>
+    <section class="card">
+      <h2>Routing decision<span class="spacer"></span><span class="muted" id="d-time"></span></h2>
+      <div class="body" id="decision"><p class="empty">Nothing routed yet.</p></div>
     </section>
 
-    <section class="card" style="margin-top:16px">
-      <h2>Model registry <span class="muted" style="text-transform:none;letter-spacing:0">&mdash; models.yaml</span></h2>
+    <section class="card">
+      <h2>Execution trace<span class="spacer"></span><span id="t-state" class="muted"></span></h2>
+      <div class="body"><ol class="trace" id="trace"><li class="empty">No run yet.</li></ol></div>
+    </section>
+
+    <section class="card" id="result-card" hidden>
+      <h2>Result<span class="spacer"></span><span class="pill" id="verdict"></span></h2>
       <div class="body">
-        <table id="registry"><tbody></tbody></table>
-        <div class="row">
-          <button class="ghost" id="reload">Reload registry</button>
-          <span class="muted" style="font-size:12px">Adding a model is a YAML edit, not a code change.</span>
-        </div>
+        <div class="answer" id="answer"></div>
+        <div class="row" id="downloads"></div>
       </div>
     </section>
   </div>
 
   <div>
     <section class="card">
-      <h2>Egress monitor</h2>
+      <h2>Containment<span class="spacer"></span><span class="muted mono" id="e-status"></span></h2>
       <div class="body">
         <dl class="kv">
-          <dt>observer</dt><dd id="e-status">&hellip;</dd>
-          <dt>allowlist</dt><dd id="e-allow" class="mono">&hellip;</dd>
+          <dt>allowlist</dt><dd id="e-allow" class="mono">…</dd>
           <dt>allowed</dt><dd id="e-allowed">0</dd>
           <dt>blocked</dt><dd id="e-blocked">0</dd>
           <dt>leaked</dt><dd id="e-leaked">0</dd>
         </dl>
-        <div class="row">
-          <button class="danger" id="trip">Attempt external call</button>
-        </div>
+        <div class="row"><button class="danger" id="trip">Attempt external call</button></div>
         <div class="why" id="trip-out" hidden></div>
         <ul class="log" id="e-log"><li class="empty">No outbound packets observed.</li></ul>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Evidence<span class="spacer"></span><span class="muted" id="ev-count"></span></h2>
+      <div class="body" id="evidence"><p class="empty">Retrieved passages appear here.</p></div>
+    </section>
+
+    <section class="card">
+      <h2>
+        <span class="tabs" role="tablist">
+          <button role="tab" aria-selected="true" data-tab="registry">Models</button>
+          <button role="tab" aria-selected="false" data-tab="kb">Knowledge</button>
+          <button role="tab" aria-selected="false" data-tab="audit">Audit</button>
+        </span>
+      </h2>
+      <div class="body">
+        <div data-panel="registry">
+          <table id="registry"></table>
+          <div class="row">
+            <button class="ghost" id="reload">Reload registry</button>
+            <span class="muted" style="font-size:11.5px">models.yaml — a config edit, not a code change.</span>
+          </div>
+        </div>
+        <div data-panel="kb" hidden>
+          <table id="kbdocs"></table>
+          <div class="row"><button class="ghost" id="rebuild">Rebuild index</button></div>
+        </div>
+        <div data-panel="audit" hidden>
+          <ul class="log" id="auditlog" style="max-height:300px"></ul>
+          <div class="row"><button class="ghost" id="refresh-audit">Refresh</button>
+            <span class="muted" style="font-size:11.5px">data/audit.jsonl</span></div>
+        </div>
       </div>
     </section>
   </div>
 </main>
 
 <script>
-const $ = s => document.querySelector(s);
+const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
 const EXAMPLES = [
-  "Calculate the percentage increase from 6.5 to 8.2",
-  "Summarize this memo",
-  "Analyze this inspection report against the SOP",
-  "Write a python script to compute the vibration trend",
-  "Identify the equipment tags in this P&ID",
+  ["L0", "Calculate the percentage increase from 6.5 to 8.2"],
+  ["L1", "Summarize this memo"],
+  ["L2", "Pump P-204 drive-end vibration is 8.2 mm/s RMS, up from 6.5 mm/s last month. Bearing temperature is 79 C against a 61 C baseline. Check both against the SOP and produce an approval note as a Word document."],
+  ["L2", "Write and run a python script that computes the vibration trend from 6.5, 7.0, 7.6, 8.2 and reports the slope"],
+  ["LV2", "Identify the equipment tags in this P&ID"],
 ];
 
+/* theme ------------------------------------------------------------------ */
+try { const t = localStorage.getItem("theme"); if (t) document.documentElement.dataset.theme = t; } catch {}
 $("#theme").onclick = () => {
   const r = document.documentElement;
   r.dataset.theme = r.dataset.theme === "dark" ? "light" : "dark";
   try { localStorage.setItem("theme", r.dataset.theme); } catch {}
 };
-try {
-  const t = localStorage.getItem("theme");
-  if (t) document.documentElement.dataset.theme = t;
-} catch {}
 
-EXAMPLES.forEach(t => {
+/* tabs ------------------------------------------------------------------- */
+$$('[role="tab"]').forEach(b => b.onclick = () => {
+  $$('[role="tab"]').forEach(x => x.setAttribute("aria-selected", x === b));
+  $$("[data-panel]").forEach(p => p.hidden = p.dataset.panel !== b.dataset.tab);
+  if (b.dataset.tab === "audit") loadAudit();
+  if (b.dataset.tab === "kb") loadKb();
+});
+
+EXAMPLES.forEach(([tier, t]) => {
   const b = document.createElement("button");
-  b.className = "chip"; b.textContent = t;
-  b.onclick = () => { $("#prompt").value = t; route(); };
+  b.className = "chip";
+  b.innerHTML = `<span class="t">${tier}</span>${esc(t.length > 62 ? t.slice(0, 62) + "…" : t)}`;
+  b.title = t;
+  b.onclick = () => { $("#prompt").value = t; run(); };
   $("#examples").append(b);
 });
 
+/* status ----------------------------------------------------------------- */
 async function status() {
   const s = await (await fetch("/api/status")).json();
-  $("#p-mode").textContent = `mode · ${s.mode}`;
-  $("#p-mode").className = "pill " + (s.mode === "sovereign" ? "ok" : "warn");
-  $("#p-endpoint").textContent = `endpoint · ${new URL(s.endpoint).host}`;
-  const tb = $("#registry tbody"); tb.innerHTML = "";
-  tb.insertAdjacentHTML("beforeend",
-    "<tr><th>tier</th><th>id</th><th>resolves to</th><th>caps</th></tr>");
+  const sov = s.mode === "sovereign";
+  const pm = $("#p-mode");
+  pm.className = "pill " + (sov ? "ok" : "warn");
+  pm.lastElementChild.textContent = `mode · ${s.mode}`;
+  $("#p-endpoint").textContent = new URL(s.endpoint).host;
+  const t = $("#registry"); t.innerHTML =
+    "<tr><th>tier</th><th>id</th><th>resolves to</th><th>budget</th></tr>";
   for (const m of s.models) {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `<td><span class="tier">${m.tier}</span></td>
-      <td class="mono">${m.id}</td><td class="mono">${m.name}</td>
-      <td class="muted">${m.caps.join(", ")}</td>`;
+    const tr = t.insertRow();
+    tr.innerHTML = `<td><span class="tier ${m.tier}">${m.tier}</span></td>
+      <td class="mono">${esc(m.id)}</td><td class="mono">${esc(m.name)}</td>
+      <td class="mono muted">${m.max_tokens ?? "—"}</td>`;
     tr.title = m.why;
-    tb.append(tr);
   }
 }
 
-async function route() {
-  const fd = new FormData();
-  fd.set("prompt", $("#prompt").value);
-  fd.set("has_image", $("#hasimg").checked ? "true" : "false");
-  const d = await (await fetch("/api/route", { method: "POST", body: fd })).json();
-  $("#decision").innerHTML = `
-    <div class="row" style="margin:0 0 10px"><span class="tier">${d.tier}</span>
-      <strong class="mono">${d.model_name ?? d.tool ?? "—"}</strong>
-      <span class="muted mono">rule: ${d.rule}</span></div>
-    <dl class="kv">
-      <dt>task</dt><dd>${d.features.task}</dd>
-      <dt>input</dt><dd>~${d.features.input_tokens} tokens</dd>
-      <dt>image</dt><dd>${d.features.has_image ? (d.features.image_kind ?? "yes") : "none"}</dd>
-      <dt>escalates to</dt><dd>${d.escalates_to ?? "— (ceiling)"}</dd>
-    </dl>
-    <div class="why">${d.why}</div>`;
+async function loadKb() {
+  const d = await (await fetch("/api/kb/documents")).json();
+  const t = $("#kbdocs");
+  t.innerHTML = `<tr><th>document</th><th>chunks</th></tr>`;
+  for (const doc of d.documents)
+    t.insertRow().innerHTML = `<td class="mono">${esc(doc.name)}</td><td class="mono">${doc.chunks}</td>`;
+  t.insertRow().innerHTML = `<td class="muted">total</td><td class="mono">${d.chunks}</td>`;
 }
-$("#go").onclick = route;
-$("#prompt").addEventListener("keydown", e => {
-  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) route();
-});
+
+async function loadAudit() {
+  const d = await (await fetch("/api/audit?n=120")).json();
+  const ul = $("#auditlog"); ul.innerHTML = "";
+  d.entries.slice().reverse().forEach(e => {
+    const li = document.createElement("li");
+    li.innerHTML = `<span class="muted">${new Date(e.ts * 1000).toTimeString().slice(0, 8)}</span>
+                    <span>${esc(e.kind)}</span>`;
+    li.title = JSON.stringify(e, null, 1);
+    ul.append(li);
+  });
+  if (!ul.children.length) ul.innerHTML = '<li class="empty">No entries yet.</li>';
+}
 
 $("#reload").onclick = async () => {
   const r = await (await fetch("/api/registry/reload", { method: "POST" })).json();
   await status();
-  $("#reload").textContent = r.added.length
-    ? `+ ${r.added.join(", ")}` : "No change";
-  setTimeout(() => $("#reload").textContent = "Reload registry", 2500);
+  $("#reload").textContent = r.added.length ? `+ ${r.added.join(", ")}` : "No change";
+  setTimeout(() => $("#reload").textContent = "Reload registry", 2400);
 };
+$("#rebuild").onclick = async () => {
+  const b = $("#rebuild"); b.disabled = true; b.textContent = "Rebuilding…";
+  const r = await (await fetch("/api/kb/build", { method: "POST" })).json();
+  await loadKb(); b.disabled = false;
+  b.textContent = `${r.documents} docs · ${r.chunks} chunks`;
+  setTimeout(() => b.textContent = "Rebuild index", 2600);
+};
+$("#refresh-audit").onclick = loadAudit;
 
+/* run -------------------------------------------------------------------- */
+let controller = null;
+
+function renderDecision(d) {
+  $("#decision").innerHTML = `
+    <div class="row" style="margin:0 0 9px"><span class="tier ${d.tier}">${d.tier}</span>
+      <strong class="mono">${esc(d.model_name ?? d.tool ?? "—")}</strong>
+      <span class="muted mono">rule: ${esc(d.rule)}</span></div>
+    <dl class="kv">
+      <dt>task</dt><dd>${esc(d.features.task)}</dd>
+      <dt>input</dt><dd>~${d.features.input_tokens} tokens</dd>
+      <dt>image</dt><dd>${d.features.has_image ? esc(d.features.image_kind ?? "yes") : "none"}</dd>
+      <dt>budget</dt><dd>${d.max_tokens} tokens</dd>
+      <dt>escalates</dt><dd>${d.escalates_to ?? "— (ceiling)"}</dd>
+    </dl>
+    <div class="why">${esc(d.why)}</div>`;
+}
+
+function addStep(s) {
+  const ol = $("#trace");
+  ol.querySelector(".empty")?.remove();
+  const det = s.detail || {};
+  let x = det.steps || det.arguments || det.model_name || det.path
+        || (det.cites || [])[0] || det.output || det.error || det.note || "";
+  if (typeof x === "object") x = JSON.stringify(x);
+  const li = document.createElement("li");
+  li.innerHTML = `<span class="n">${s.n}</span><span class="k ${esc(s.kind)}">${esc(s.kind)}</span>
+    <span class="msg">${esc(s.label)}${x ? `<span class="x">${esc(String(x).slice(0, 200))}</span>` : ""}</span>`;
+  ol.append(li);
+  ol.scrollTop = ol.scrollHeight;
+}
+
+function renderEvidence(ev) {
+  $("#ev-count").textContent = ev.length ? `${ev.length} passages` : "";
+  if (!ev.length) return;
+  $("#evidence").innerHTML = ev.map(p => `
+    <div class="ev"><div class="h"><span class="id">${esc(p.id)}</span>
+      <span class="muted mono" style="font-size:11px">${esc(p.cite)}</span>
+      <span class="sc">${p.score ?? ""}</span></div>
+      <div class="tx">${esc((p.text || "").slice(0, 200))}…</div></div>`).join("");
+}
+
+function linkCitations(text, ev) {
+  const known = new Set(ev.map(p => p.id));
+  return esc(text).replace(/\[([^\[\]]+?#\d+)\]/g, (m, id) =>
+    known.has(id) ? `<span class="cite" title="resolves to a retrieved passage">[${esc(id)}]</span>` : m);
+}
+
+async function run() {
+  const prompt = $("#prompt").value.trim();
+  if (!prompt) return;
+  controller?.abort();
+  controller = new AbortController();
+  $("#go").disabled = true; $("#stop").disabled = false;
+  $("#trace").innerHTML = ""; $("#result-card").hidden = true;
+  $("#evidence").innerHTML = '<p class="empty">Retrieved passages appear here.</p>';
+  $("#ev-count").textContent = "";
+  $("#t-state").innerHTML = '<span class="spin"></span>';
+  const t0 = performance.now();
+
+  const fd = new FormData();
+  fd.set("prompt", prompt);
+  fd.set("has_image", $("#hasimg").checked ? "true" : "false");
+
+  try {
+    const res = await fetch("/api/run", { method: "POST", body: fd, signal: controller.signal });
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let buf = "";
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      const parts = buf.split("\n\n"); buf = parts.pop();
+      for (const part of parts) {
+        const line = part.split("\n").find(l => l.startsWith("data: "));
+        if (!line) continue;
+        const e = JSON.parse(line.slice(6));
+        if (e.type === "step") { addStep(e); if (e.kind === "route") renderDecision(e.detail); }
+        else if (e.type === "final") {
+          renderEvidence(e.evidence || []);
+          $("#result-card").hidden = false;
+          $("#answer").innerHTML = linkCitations(e.answer || "", e.evidence || []);
+          const v = $("#verdict");
+          v.textContent = e.verdict ?? "done";
+          v.className = "pill " + (e.verdict === "ok" ? "ok" : "warn");
+          $("#downloads").innerHTML = (e.deliverables || []).map(d =>
+            `<a class="dl" href="${esc(d.download)}" download>↓ ${esc(d.path.split("/").pop())}
+             <span class="muted mono" style="font-size:11px">${(d.bytes / 1024).toFixed(0)} KB</span></a>`).join("");
+        } else if (e.type === "error") {
+          addStep({ n: "!", kind: "error", label: e.error, detail: {} });
+        }
+      }
+    }
+  } catch (err) {
+    if (err.name !== "AbortError") addStep({ n: "!", kind: "error", label: String(err), detail: {} });
+  } finally {
+    $("#go").disabled = false; $("#stop").disabled = true;
+    $("#t-state").textContent = `${((performance.now() - t0) / 1000).toFixed(1)}s`;
+    $("#d-time").textContent = "";
+    loadAudit();
+  }
+}
+$("#go").onclick = run;
+$("#stop").onclick = () => controller?.abort();
+$("#prompt").addEventListener("keydown", e => {
+  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) run();
+});
+
+/* containment ------------------------------------------------------------ */
 $("#trip").onclick = async () => {
-  $("#trip").disabled = true; $("#trip").textContent = "Attempting…";
+  const b = $("#trip"); b.disabled = true; b.textContent = "Attempting…";
   const r = await (await fetch("/api/tripwire", { method: "POST" })).json();
   const out = $("#trip-out"); out.hidden = false;
   out.style.borderLeftColor = r.blocked ? "var(--ok)" : "var(--bad)";
-  out.innerHTML = `<strong>${r.blocked ? "BLOCKED" : "NOT CONTAINED"}</strong> —
-    ${r.detail}<br><span class="mono muted">${r.error ?? ""} · ${r.elapsed_ms}ms</span>`;
-  $("#trip").disabled = false; $("#trip").textContent = "Attempt external call";
+  out.innerHTML = `<strong style="color:${r.blocked ? "var(--ok)" : "var(--bad)"}">
+    ${r.blocked ? "BLOCKED" : "NOT CONTAINED"}</strong> — ${esc(r.detail)}
+    <span class="mono muted" style="display:block;margin-top:3px">${esc(r.error ?? "")} · ${r.elapsed_ms}ms</span>`;
+  b.disabled = false; b.textContent = "Attempt external call";
+  loadAudit();
 };
 
 function renderSnapshot(s) {
   $("#e-status").textContent = s.status;
-  $("#p-egress").textContent = `egress · ${s.status.startsWith("MONITORING") ? "observed" : "unverified"}`;
-  $("#p-egress").className = "pill " + (s.status.startsWith("MONITORING") ? "ok" : "warn");
+  const p = $("#p-egress");
+  const good = s.contained;
+  p.className = "pill " + (good ? "ok" : s.leaked_count ? "bad" : "warn");
+  p.lastElementChild.textContent = good ? "contained"
+    : s.leaked_count ? `${s.leaked_count} leaked` : "unverified";
   $("#e-allow").textContent = s.allowlist.join(", ");
-  $("#e-allowed").textContent = s.allowed_count;
-  $("#e-blocked").textContent = s.blocked_count;
-  $("#e-leaked").textContent = s.leaked_count;
+  for (const [k, v] of [["allowed", s.allowed_count], ["blocked", s.blocked_count], ["leaked", s.leaked_count]])
+    $("#e-" + k).textContent = v;
   $("#e-leaked").style.color = s.leaked_count ? "var(--bad)" : "";
   $("#e-log").innerHTML = "";
-  (s.events ?? []).forEach(addEvent);
+  (s.events ?? []).forEach(addEgress);
   if (!$("#e-log").children.length)
     $("#e-log").innerHTML = '<li class="empty">No outbound packets observed.</li>';
 }
-function addEvent(e) {
+function addEgress(e) {
   const log = $("#e-log");
   log.querySelector(".empty")?.remove();
   const li = document.createElement("li");
-  const t = new Date(e.ts * 1000).toTimeString().slice(0, 8);
-  li.innerHTML = `<span class="v ${e.verdict}">${e.verdict}</span>
-    <span class="muted">${t}</span><span>${e.dst}</span>`;
+  li.innerHTML = `<span class="v ${esc(e.verdict)}">${esc(e.verdict)}</span>
+    <span class="muted">${new Date(e.ts * 1000).toTimeString().slice(0, 8)}</span><span>${esc(e.dst)}</span>`;
   if (e.detail) li.title = e.detail;
   log.prepend(li);
   while (log.children.length > 60) log.lastChild.remove();
@@ -252,13 +453,14 @@ es.onmessage = ev => {
   const d = JSON.parse(ev.data);
   if (d.type === "snapshot") renderSnapshot(d);
   else if (d.type === "egress") {
-    addEvent(d);
+    addEgress(d);
     const k = { BLOCKED: "#e-blocked", ALLOWED: "#e-allowed", LEAKED: "#e-leaked" }[d.verdict];
     if (k) { $(k).textContent = +$(k).textContent + 1;
              if (d.verdict === "LEAKED") $("#e-leaked").style.color = "var(--bad)"; }
   }
 };
-status();
+
+status(); loadKb();
 </script>
 </body>
 </html>

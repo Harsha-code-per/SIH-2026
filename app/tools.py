@@ -175,6 +175,44 @@ def run_python(code: str, timeout: int = 20) -> dict:
 # --------------------------------------------------------------------------
 # Deliverables
 # --------------------------------------------------------------------------
+_MD_ROW = re.compile(r"^\s*\|.*\|\s*$")
+_MD_RULE = re.compile(r"^\s*\|[\s:|-]+\|\s*$")
+
+
+def _split_markdown_tables(body: str) -> list[tuple[str, object]]:
+    """Separate prose from markdown tables.
+
+    Models write tables as markdown even when handed a table parameter. Pasting
+    that into a Word paragraph produces pipes and dashes in a document meant for
+    a section head, so it is parsed into real rows instead.
+    """
+    out: list[tuple[str, object]] = []
+    prose: list[str] = []
+    rows: list[list[str]] = []
+
+    def flush_prose():
+        if prose and "".join(prose).strip():
+            out.append(("text", "\n".join(prose).strip()))
+        prose.clear()
+
+    def flush_rows():
+        if rows:
+            out.append(("table", [r[:] for r in rows]))
+        rows.clear()
+
+    for line in body.splitlines():
+        if _MD_ROW.match(line):
+            if _MD_RULE.match(line):      # the |---|---| separator
+                continue
+            flush_prose()
+            rows.append([c.strip() for c in line.strip().strip("|").split("|")])
+        else:
+            flush_rows()
+            prose.append(line)
+    flush_prose(); flush_rows()
+    return out
+
+
 def write_docx(title: str, sections: list[dict], filename: str = "Approval_Note.docx",
                subtitle: str | None = None) -> dict:
     """Write a Word deliverable. `sections` is [{heading, body, table?}]."""
@@ -195,19 +233,15 @@ def write_docx(title: str, sections: list[dict], filename: str = "Approval_Note.
         if s.get("heading"):
             doc.add_heading(str(s["heading"]), level=1)
         if s.get("body"):
-            for para in str(s["body"]).split("\n\n"):
-                if para.strip():
-                    doc.add_paragraph(para.strip())
+            for kind, chunk in _split_markdown_tables(str(s["body"])):
+                if kind == "table":
+                    _add_table(doc, chunk)
+                else:
+                    for para in chunk.split("\n\n"):
+                        if para.strip():
+                            doc.add_paragraph(para.strip())
         if s.get("table"):
-            rows = s["table"]
-            t = doc.add_table(rows=len(rows), cols=len(rows[0]))
-            t.style = "Table Grid"
-            for ri, row in enumerate(rows):
-                for ci, cell in enumerate(row):
-                    t.cell(ri, ci).text = str(cell)
-                    if ri == 0:
-                        for r_ in t.cell(ri, ci).paragraphs[0].runs:
-                            r_.bold = True
+            _add_table(doc, s["table"])
         if s.get("citations"):
             p = doc.add_paragraph()
             r = p.add_run("Source: " + "; ".join(s["citations"]))
@@ -218,6 +252,22 @@ def write_docx(title: str, sections: list[dict], filename: str = "Approval_Note.
     doc.save(dest)
     return {"path": str(dest.relative_to(ROOT)), "bytes": dest.stat().st_size,
             "download": f"/api/download/{dest.name}"}
+
+
+def _add_table(doc, rows: list[list]) -> None:
+    rows = [r for r in rows if r]
+    if not rows:
+        return
+    width = max(len(r) for r in rows)
+    t = doc.add_table(rows=len(rows), cols=width)
+    t.style = "Table Grid"
+    for ri, row in enumerate(rows):
+        for ci in range(width):
+            cell = t.cell(ri, ci)
+            cell.text = str(row[ci]) if ci < len(row) else ""
+            if ri == 0:
+                for run in cell.paragraphs[0].runs:
+                    run.bold = True
 
 
 def write_xlsx(filename: str, sheet: str, rows: list[list]) -> dict:
@@ -313,3 +363,91 @@ def call(name: str, arguments: str | dict) -> Any:
         # Errors are returned to the model rather than raised, so it can correct
         # itself -- that iteration is the point of an agent loop.
         return {"error": f"{type(e).__name__}: {e}"}
+
+
+# --------------------------------------------------------------------------
+# Vision: pages with no text layer, and engineering drawings
+#
+# A synchronous client of its own, because tools are invoked from a worker
+# thread. It reads the same mode configuration as everything else, so it moves
+# endpoint with the rest of the system.
+# --------------------------------------------------------------------------
+_vision_client = None
+
+
+def _vision():
+    global _vision_client
+    if _vision_client is None:
+        import os
+        from openai import OpenAI
+        from .router import Router
+        r = Router()
+        key_env = r.mode_cfg.get("api_key_env")
+        _vision_client = (OpenAI(
+            base_url=os.environ.get("MODEL_ENDPOINT", r.mode_cfg["endpoint"]),
+            api_key=os.environ.get(key_env, "") if key_env else "not-needed",
+            timeout=180.0), r)
+    return _vision_client
+
+
+def _vision_model(tier: str) -> str:
+    _, r = _vision()
+    for m in r.models_for_tier(tier):
+        return r.resolve(m)
+    raise RuntimeError(f"no model registered for tier {tier}")
+
+
+def _ask_vision(tier: str, prompt: str, image_b64: str, max_tokens: int = 3000) -> str:
+    client, _ = _vision()
+    r = client.chat.completions.create(
+        model=_vision_model(tier), max_tokens=max_tokens, temperature=0.0,
+        messages=[{"role": "user", "content": [
+            {"type": "text", "text": prompt},
+            {"type": "image_url",
+             "image_url": {"url": f"data:image/png;base64,{image_b64}"}}]}])
+    return (r.choices[0].message.content or "").strip()
+
+
+def parse_page(path: str, page: int) -> dict:
+    """Transcribe one scanned page with the document model.
+
+    Only for pages that have no text layer -- read_document says which.
+    """
+    from .ocr import PARSE_PROMPT, page_image_b64
+    p = (ROOT / path).resolve()
+    if not p.is_relative_to(ROOT / "data"):
+        raise ValueError(f"refusing to read outside data/: {path}")
+    text = _ask_vision("LV", PARSE_PROMPT, page_image_b64(p, page))
+    return {"path": path, "page": page, "source": "vlm", "text": text}
+
+
+def describe_image(path: str, question: str = "") -> dict:
+    """Read a photograph or engineering drawing (P&ID, schematic, sketch)."""
+    import base64
+    p = (ROOT / path).resolve()
+    if not p.is_relative_to(ROOT / "data"):
+        raise ValueError(f"refusing to read outside data/: {path}")
+    if p.suffix.lower() == ".pdf":
+        from .ocr import page_image_b64
+        b64 = page_image_b64(p, 1)
+    else:
+        b64 = base64.b64encode(p.read_bytes()).decode()
+    prompt = question or (
+        "Describe this engineering drawing. List every equipment tag, instrument "
+        "tag and line number you can read, exactly as printed. If you cannot read "
+        "something, say so rather than guessing.")
+    return {"path": path, "source": "vlm", "description": _ask_vision("LV2", prompt, b64)}
+
+
+TOOLS["parse_page"] = _t("parse_page",
+    "Transcribe a single scanned page that has no text layer, using the document "
+    "model. Call read_document first to find out which pages need this.",
+    {"path": {"type": "string"}, "page": {"type": "integer"}},
+    ["path", "page"], parse_page)
+
+TOOLS["describe_image"] = _t("describe_image",
+    "Read a photograph or engineering drawing such as a P&ID. Returns equipment "
+    "and instrument tags as printed.",
+    {"path": {"type": "string"},
+     "question": {"type": "string", "description": "Optional specific question"}},
+    ["path"], describe_image)

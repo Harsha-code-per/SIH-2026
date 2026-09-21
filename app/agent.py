@@ -149,9 +149,11 @@ class Agent:
             self._emit("tool", name, arguments=json.dumps(args))
             out = T.call(name, args)
             self._emit("result", "deterministic result", **out)
+            ok = isinstance(out, dict) and "error" not in out
+            self._emit("done", "ok" if ok else "failed")
             return {"answer": out.get("steps", str(out)), "decision": decision.as_dict(),
                     "steps": [s.as_dict() for s in self.steps], "evidence": [],
-                    "deliverables": []}
+                    "deliverables": [], "verdict": "ok" if ok else "failed"}
 
         result = await self._converse(prompt, decision)
 
