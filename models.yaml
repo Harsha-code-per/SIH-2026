@@ -3,6 +3,11 @@
 # models should be addable later without redesigning the system.")
 #
 # Verify ids against the live catalogue: python -m app.verify_models
+#
+# The two text tiers are the same model family differing in active parameters
+# (Nemotron-3 a3b vs a12b), which is exactly what a tier is: same capability
+# surface, different compute per token. Measured medians over 3 runs are in
+# docs/model-benchmark.md.
 
 modes:
   prototype:
@@ -20,15 +25,15 @@ models:
     caps: [text, tools]
     ctx: 32768
     why: "Cheap, quick. Summaries, extraction, classification."
-    prototype: google/gemma-3-4b-it
-    sovereign: gemma3:4b
+    prototype: nvidia/nemotron-3-nano-omni-30b-a3b-reasoning   # 3B active
+    sovereign: qwen3:4b
 
   - id: reason
     tier: L2
     caps: [text, tools, code]
     ctx: 32768
     why: "Multi-step analysis, code, anything that must not be sloppy."
-    prototype: google/gemma-4-31b-it
+    prototype: nvidia/nemotron-3-super-120b-a12b              # 12B active
     sovereign: qwen3:8b
 
   - id: doc
