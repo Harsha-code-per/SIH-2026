@@ -238,6 +238,8 @@ class Agent:
         evidence: dict[str, dict] = {}
         deliverables: list[dict] = []
         stdouts: list[str] = []           # what the sandbox really printed
+        sandbox_runs = 0
+        sandbox_ok = 0
         searched = False                  # did the task ask the knowledge base?
         retrieval_broken: str | None = None
         seen: dict[str, dict] = {}        # call signature -> cached result
@@ -299,7 +301,8 @@ class Agent:
                 return {"answer": answer, "evidence": list(evidence.values()),
                         "deliverables": deliverables,
                         "verdict": self._verify(answer, evidence, deliverables, stdouts,
-                                                searched, retrieval_broken)}
+                                                searched, retrieval_broken,
+                                                sandbox_runs, sandbox_ok)}
 
             messages.append({
                 "role": "assistant", "content": msg.content or "",
@@ -339,6 +342,8 @@ class Agent:
                         self._emit("result", f"{out.get('count', 0)} passages",
                                    cites=[psg["cite"] for psg in out.get("passages", [])])
                 elif name == "run_python":
+                    sandbox_runs += 1
+                    sandbox_ok += bool(out.get("ok"))
                     stdouts.append(str(out.get("stdout", "")))
                     self._emit("result", "sandbox exit "
                                f"{out.get('exit_code')} · {out.get('isolation', '')}",
@@ -361,10 +366,19 @@ class Agent:
 
     def _verify(self, answer: str, evidence: dict, deliverables: list,
                 stdouts: list[str] | None = None, searched: bool = False,
-                retrieval_broken: str | None = None) -> str:
+                retrieval_broken: str | None = None,
+                sandbox_runs: int = 0, sandbox_ok: int = 0) -> str:
         """Cheap post-checks. Each failure is a reason to escalate, not to hide."""
         if not answer and not deliverables:
             return "empty"
+
+        # A model may write buggy code, see the error, and fix it -- that is the
+        # loop working. But if it ran code and nothing ever succeeded, the task
+        # was not verified in a sandbox, whatever the prose says about it.
+        if sandbox_runs and not sandbox_ok:
+            self._emit("verify", "no sandbox run succeeded",
+                       attempted=sandbox_runs, succeeded=0)
+            return "sandbox-failed"
 
         # A task that reached for the knowledge base and got nothing back is
         # ungrounded, whatever it went on to produce. Passing it because there

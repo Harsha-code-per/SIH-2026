@@ -80,3 +80,15 @@ def test_repairable_verdicts_have_actionable_instructions():
     # "empty" and "step-limit" are not listed: retrying them unchanged is a
     # re-roll, not a repair.
     assert "empty" not in REPAIRABLE and "step-limit" not in REPAIRABLE
+
+
+def test_a_code_task_whose_runs_all_failed_is_not_ok():
+    """Six timed-out sandbox runs once produced verdict=ok. Never again."""
+    from app.agent import Agent
+    from app.router import Router
+    a = Agent(Router(), llm=None)
+    assert a._verify("The mean is 7.325.", {}, [], stdouts=["", ""],
+                     sandbox_runs=2, sandbox_ok=0) == "sandbox-failed"
+    # One failure then one success is the loop working as intended.
+    assert a._verify("The mean is 7.325.", {}, [], stdouts=["", "7.325"],
+                     sandbox_runs=2, sandbox_ok=1) == "ok"
