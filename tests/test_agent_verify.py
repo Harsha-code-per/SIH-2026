@@ -92,3 +92,13 @@ def test_a_code_task_whose_runs_all_failed_is_not_ok():
     # One failure then one success is the loop working as intended.
     assert a._verify("The mean is 7.325.", {}, [], stdouts=["", "7.325"],
                      sandbox_runs=2, sandbox_ok=1) == "ok"
+
+
+def test_emit_survives_payloads_that_shadow_its_parameters():
+    """Tool payloads carry arbitrary keys, including 'kind' and 'label'."""
+    from app.agent import Agent
+    from app.router import Router
+    a = Agent(Router(), llm=None)
+    s = a._emit("route", "attachment", kind="page", label="x", n=99, path="a.pdf")
+    assert s.kind == "route" and s.label == "attachment" and s.n == 1
+    assert s.detail["detail_kind"] == "page" and s.detail["path"] == "a.pdf"

@@ -90,3 +90,29 @@ async def read_pdf_with_vlm(path: Path, llm, model: str,
         p.text = await llm.vision(model, PARSE_PROMPT, page_image_b64(path, p.page))
         p.source = "vlm"
     return got
+
+
+IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".tif", ".tiff", ".bmp"}
+
+
+def classify_attachment(path: Path) -> dict:
+    """What kind of thing is this, and which tier should read it?
+
+    Decided from the file, never from words in the prompt. A scanned report and
+    a P&ID are both "an image" to a router that only knows there is one, and
+    they need different models.
+    """
+    if path.suffix.lower() in IMAGE_SUFFIXES:
+        return {"kind": "drawing", "tier": "LV2", "has_image": True,
+                "why": "an image file, so a photograph or a drawing"}
+    if path.suffix.lower() != ".pdf":
+        return {"kind": None, "tier": None, "has_image": False,
+                "why": "plain text, no model needed to read it"}
+    v = classify_pdf(path)
+    if v["kind"] == "scanned":
+        return {"kind": "page", "tier": "LV", "has_image": True,
+                "why": v["why"], "pages": v["pages"],
+                "scanned_pages": v["scanned_pages"]}
+    return {"kind": None, "tier": None, "has_image": False,
+            "why": v["why"] + " -- the text layer is enough",
+            "pages": v["pages"]}

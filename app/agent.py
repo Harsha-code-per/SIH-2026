@@ -176,14 +176,36 @@ class Agent:
         self.steps: list[Step] = []
 
     def _emit(self, kind: str, label: str, **detail) -> Step:
+        # Detail comes from tool payloads, which are free to contain a key
+        # called "kind" or "label". Those would bind to the positional
+        # parameters and raise, so they are namespaced rather than trusted.
+        for reserved in ("kind", "label", "n", "ts"):
+            if reserved in detail:
+                detail[f"detail_{reserved}"] = detail.pop(reserved)
         s = Step(len(self.steps) + 1, kind, label, detail)
         self.steps.append(s)
         self.on_step(s)
         return s
 
     async def run(self, prompt: str, *, has_image: bool = False,
+                  attachment: str | None = None,
                   allow_escalation: bool = True) -> dict:
-        decision = self.router.route(prompt, has_image=has_image)
+        note = None
+        if attachment:
+            from pathlib import Path as _P
+            from .ocr import classify_attachment
+            from .tools import ROOT
+            v = classify_attachment((ROOT / attachment).resolve())
+            has_image = v["has_image"]
+            self._emit("route", f"attachment · {v['kind'] or 'text'}",
+                       path=attachment, **{f"file_{k}": val for k, val in v.items()})
+            tool = {"page": "parse_page on each page that has no text layer",
+                    "drawing": "describe_image"}.get(v["kind"], "read_document")
+            note = (f"The user attached a file at: {attachment}\n"
+                    f"Inspect it with read_document, then use {tool}.")
+
+        decision = self.router.route(prompt, has_image=has_image,
+                                     image_kind=(v["kind"] if attachment else None))
         self._emit("route", f"{decision.tier} · {decision.rule}", **decision.as_dict())
 
         # L0 never reaches a model.
@@ -202,14 +224,14 @@ class Agent:
                     "steps": [s.as_dict() for s in self.steps], "evidence": [],
                     "deliverables": [], "verdict": "ok" if ok else "failed"}
 
-        result = await self._converse(prompt, decision)
+        result = await self._converse(prompt, decision, note=note)
 
         if allow_escalation and result["verdict"] != "ok":
             up = self.router.escalate(decision)
             if up:
                 self._emit("escalate", f"{decision.tier} → {up.tier}",
                            reason=result["verdict"], model=up.model_name)
-                result = await self._converse(prompt, up)
+                result = await self._converse(prompt, up, note=note)
                 decision = up
             elif result["verdict"] in REPAIRABLE:
                 # At the top tier there is nowhere to escalate, so the run is
@@ -219,7 +241,7 @@ class Agent:
                 self._emit("retry", f"repairing: {result['verdict']}",
                            hint=REPAIRABLE[result["verdict"]][:80])
                 repaired = await self._converse(
-                    prompt, decision, repair=REPAIRABLE[result["verdict"]])
+                    prompt, decision, repair=REPAIRABLE[result["verdict"]], note=note)
                 if repaired["verdict"] == "ok" or not result["deliverables"]:
                     result = repaired
 
@@ -231,9 +253,10 @@ class Agent:
                 "verdict": result["verdict"]}
 
     async def _converse(self, prompt: str, decision: Decision,
-                        repair: str | None = None) -> dict:
+                        repair: str | None = None, note: str | None = None) -> dict:
         messages = [{"role": "system", "content": SYSTEM},
                     {"role": "user", "content": prompt
+                     + (f"\n\n{note}" if note else "")
                      + (f"\n\nIMPORTANT: {repair}" if repair else "")}]
         evidence: dict[str, dict] = {}
         deliverables: list[dict] = []

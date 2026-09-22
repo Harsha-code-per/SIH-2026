@@ -109,7 +109,8 @@ async def egress_stream():
 
 
 @app.post("/api/run")
-async def run(prompt: str = Form(...), has_image: bool = Form(False)):
+async def run(prompt: str = Form(...), has_image: bool = Form(False),
+              attachment: str = Form("")):
     """Execute a task, streaming every step as it happens.
 
     The trace is the product as much as the answer is: an engineer approving a
@@ -117,7 +118,12 @@ async def run(prompt: str = Form(...), has_image: bool = Form(False)):
     just the conclusion.
     """
     q: asyncio.Queue = asyncio.Queue()
-    audit.record("task.received", prompt=prompt[:500], mode=MODE)
+    audit.record("task.received", prompt=prompt[:500], mode=MODE,
+                 attachment=attachment or None)
+
+    # The attachment is passed through separately rather than pasted into the
+    # prompt. Appending guidance text to the prompt fed words like "drawing"
+    # into the router, which then sent a scanned report to the drawing model.
 
     async def gen():
         # Steps are emitted from the event-loop thread, so queue them directly.
@@ -128,7 +134,7 @@ async def run(prompt: str = Form(...), has_image: bool = Form(False)):
 
         async def drive():
             try:
-                return await agent.run(prompt, has_image=has_image)
+                return await agent.run(prompt, attachment=attachment or None)
             finally:
                 q.put_nowait(None)
 
@@ -189,8 +195,17 @@ async def audit_log(n: int = 150):
 @app.post("/api/upload")
 async def upload(file: UploadFile = File(...)):
     UPLOADS.mkdir(parents=True, exist_ok=True)
-    dest = UPLOADS / Path(file.filename or "upload.bin").name
-    dest.write_bytes(await file.read())
+    name = Path(file.filename or "upload.bin").name
+    if not name or name.startswith("."):
+        return JSONResponse({"error": "unusable filename"}, status_code=400)
+    dest = UPLOADS / name
+    data = await file.read()
+    # 32MB: a scanned report is a few MB, and an unbounded upload into a
+    # container with a small disk is a denial of service with extra steps.
+    if len(data) > 32 * 1024 * 1024:
+        return JSONResponse({"error": "file larger than 32MB"}, status_code=413)
+    UPLOADS.mkdir(parents=True, exist_ok=True)
+    dest.write_bytes(data)
     audit.record("upload", name=dest.name, bytes=dest.stat().st_size)
     return {"path": str(dest.relative_to(ROOT)), "bytes": dest.stat().st_size}
 

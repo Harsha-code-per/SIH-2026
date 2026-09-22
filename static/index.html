@@ -105,6 +105,17 @@
   .switch:hover{border-color:var(--line-2)}
   .switch input{accent-color:var(--accent);margin:0}
 
+  .attached{display:flex;align-items:center;gap:10px;margin-top:11px;padding:9px 12px;
+            border:1px solid var(--line);border-radius:var(--r-sm);background:var(--surface-2)}
+  .attached svg{width:15px;height:15px;color:var(--accent);flex:none}
+  .attached .nm{font:600 12.5px/1.2 var(--sans);overflow:hidden;text-overflow:ellipsis;
+                white-space:nowrap}
+  .attached .meta{font:11px var(--mono);color:var(--muted)}
+  .attached button{margin-left:auto;padding:4px 9px;font-size:11.5px;background:transparent;
+                   color:var(--muted);border:1px solid var(--line)}
+  .attached button:hover{color:var(--bad);border-color:var(--bad)}
+  .composer.drag textarea{border-color:var(--accent);
+                          background:color-mix(in srgb,var(--accent) 7%,var(--surface-2))}
   .presets{display:flex;gap:7px;flex-wrap:wrap;margin-top:11px}
   .preset{display:inline-flex;align-items:center;gap:7px;max-width:100%;
           background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r-sm);
@@ -287,10 +298,18 @@
         <div class="bar">
           <button class="btn-primary" id="go">Run task</button>
           <button class="btn-ghost" id="stop" disabled>Stop</button>
-          <label class="switch"><input type="checkbox" id="hasimg"> Attach image or scan</label>
+          <input type="file" id="file" hidden
+                 accept=".pdf,.png,.jpg,.jpeg,.webp,.txt,.md">
+          <button class="btn-ghost" id="attach" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round"
+                 style="width:14px;height:14px;vertical-align:-2px;margin-right:6px">
+              <path d="M21.4 11.1 12.3 20.2a5.5 5.5 0 0 1-7.8-7.8l9.2-9.1a3.7 3.7 0 0 1 5.2 5.2l-9.2 9.1a1.8 1.8 0 0 1-2.6-2.6l8.5-8.4"/>
+            </svg>Attach a document or drawing</button>
           <span class="grow"></span>
           <span class="kbd">⌘ / Ctrl + ↵</span>
         </div>
+        <div class="attached hidden" id="attached"></div>
         <div class="presets" id="presets"></div>
       </div>
     </section>
@@ -504,6 +523,48 @@ $("#rebuild").onclick = async e => {
 };
 $("#refresh-audit").onclick = loadAudit;
 
+/* ---------- attachments ---------- */
+let attachment = null;                 // {path, bytes, name, isImage}
+const IMAGE_LIKE = /\.(pdf|png|jpe?g|webp|tiff?)$/i;
+
+function renderAttachment() {
+  const box = $("#attached");
+  show(box, Boolean(attachment));
+  if (!attachment) return;
+  box.innerHTML = `
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+         stroke-linecap="round" stroke-linejoin="round">
+      <path d="M14 3v5h5M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Z"/></svg>
+    <span><span class="nm">${esc(attachment.name)}</span>
+      <span class="meta">${(attachment.bytes / 1024).toFixed(0)} KB · ${esc(attachment.path)}</span></span>
+    <button type="button" id="detach">Remove</button>`;
+  $("#detach").onclick = () => { attachment = null; $("#file").value = ""; renderAttachment(); };
+}
+
+async function upload(file) {
+  if (!file) return;
+  const fd = new FormData();
+  fd.set("file", file);
+  const r = await (await fetch("/api/upload", { method: "POST", body: fd })).json();
+  if (r.error) { alert(r.error); return; }
+  attachment = { ...r, name: file.name, isImage: IMAGE_LIKE.test(file.name) };
+  renderAttachment();
+}
+
+$("#attach").onclick = () => $("#file").click();
+$("#file").onchange = e => upload(e.target.files[0]);
+
+// Drag and drop onto the composer, because that is how people actually attach
+// a scan they just pulled off a shared drive.
+const composer = $(".composer");
+["dragenter", "dragover"].forEach(ev => composer.addEventListener(ev, e => {
+  e.preventDefault(); composer.classList.add("drag");
+}));
+["dragleave", "drop"].forEach(ev => composer.addEventListener(ev, e => {
+  e.preventDefault(); composer.classList.remove("drag");
+}));
+composer.addEventListener("drop", e => upload(e.dataTransfer.files[0]));
+
 /* ---------- run ---------- */
 let controller = null, timer = null;
 
@@ -588,7 +649,10 @@ async function run() {
 
   const fd = new FormData();
   fd.set("prompt", prompt);
-  fd.set("has_image", $("#hasimg").checked ? "true" : "false");
+  if (attachment) {
+    fd.set("attachment", attachment.path);
+    fd.set("has_image", String(attachment.isImage));
+  }
 
   try {
     const res = await fetch("/api/run", { method: "POST", body: fd, signal: controller.signal });
