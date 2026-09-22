@@ -32,7 +32,7 @@ sovereign:               ## the stack with no gateway: nothing reachable
 prove:                   ## show containment from inside the running app
 	@docker compose exec -T app sh -c \
 	  'awk "NR>1 && \$$2==\"00000000\" {f=1} END {print f?\"  HAS default route\":\"  no default route\"}" /proc/net/route'
-	@curl -s -X POST $(URL)/api/tripwire | $(VENV)/python -c \
+	@curl -s -X POST $(URL)/api/tripwire | python3 -c \
 	  "import json,sys;r=json.load(sys.stdin);print(f\"  tripwire  blocked={r['blocked']}  {r['elapsed_ms']}ms  {r['error']}\")"
 
 # ---- host mode: fast iteration, no containment ------------------------------

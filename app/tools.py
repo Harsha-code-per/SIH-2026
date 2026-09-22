@@ -11,7 +11,6 @@ import json
 import re
 import operator as op
 import subprocess
-import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
@@ -168,28 +167,30 @@ def run_python(code: str, timeout: int = 20) -> dict:
 
     --network none is the load-bearing flag: the sandbox cannot phone home even
     if the code it was handed tries to.
+
+    The snippet arrives on stdin rather than a bind mount. When the app itself
+    runs in a container and talks to the host's Docker daemon, a mount path
+    would be resolved on the host, where the app's temp directory does not
+    exist. stdin has no path to get wrong.
     """
-    with tempfile.TemporaryDirectory() as tmp:
-        snippet = Path(tmp) / "snippet.py"
-        snippet.write_text(code)
-        # The sandbox runs as an unprivileged uid that is not ours, so the bind
-        # mount has to be readable by it. 0755/0644, never writable.
-        Path(tmp).chmod(0o755)
-        snippet.chmod(0o644)
-        cmd = [
-            "docker", "run", "--rm",
-            "--network", "none",              # no egress, at all
-            "--memory", "512m", "--pids-limit", "64", "--cpus", "1",
-            "--cap-drop", "ALL", "--security-opt", "no-new-privileges",
-            "--read-only", "--tmpfs", "/tmp:size=16m",
-            "-v", f"{tmp}:/work:ro",
-            SANDBOX_IMAGE, "python", "/work/snippet.py",
-        ]
-        try:
-            r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout + 10)
-        except subprocess.TimeoutExpired:
-            return {"ok": False, "stdout": "", "stderr": f"timed out after {timeout}s",
-                    "exit_code": None, "isolation": "--network none"}
+    cmd = [
+        "docker", "run", "--rm", "-i",
+        "--network", "none",              # no egress, at all
+        "--memory", "512m", "--pids-limit", "64", "--cpus", "1",
+        "--cap-drop", "ALL", "--security-opt", "no-new-privileges",
+        "--read-only", "--tmpfs", "/tmp:size=16m",
+        SANDBOX_IMAGE, "python", "-",
+    ]
+    try:
+        r = subprocess.run(cmd, input=code, capture_output=True, text=True,
+                           timeout=timeout + 10)
+    except subprocess.TimeoutExpired:
+        return {"ok": False, "stdout": "", "stderr": f"timed out after {timeout}s",
+                "exit_code": None, "isolation": "--network none"}
+    except FileNotFoundError:
+        return {"ok": False, "stdout": "",
+                "stderr": "docker CLI not available to the app; the sandbox cannot start",
+                "exit_code": None, "isolation": "none"}
     return {"ok": r.returncode == 0, "stdout": r.stdout[-4000:],
             "stderr": r.stderr[-2000:], "exit_code": r.returncode,
             "isolation": "--network none --cap-drop ALL --read-only"}

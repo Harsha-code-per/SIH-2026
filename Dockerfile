@@ -1,8 +1,9 @@
 FROM python:3.12-slim
 # tcpdump is the independent observer: the app cannot lie to it about what left
-# the machine. docker.io is the client used to launch the code sandbox.
+# the machine. docker-cli launches the code sandbox (on Debian 13 the CLI is
+# its own package; docker.io alone ships only docker-init).
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      tcpdump docker.io && rm -rf /var/lib/apt/lists/*
+      tcpdump docker-cli && rm -rf /var/lib/apt/lists/*
 WORKDIR /srv
 COPY requirements*.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
