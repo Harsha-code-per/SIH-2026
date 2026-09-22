@@ -35,7 +35,11 @@ monitor = EgressMonitor(allowlist=router.mode_cfg.get("egress_allow") or [], mod
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await monitor.start()
-    KB.load()
+    # A fresh clone has documents but no index. Build it rather than serving an
+    # empty knowledge base, which would make every task ungrounded on first run.
+    if not KB.load() and any((ROOT / "data" / "kb").glob("*.md")):
+        stats = await asyncio.to_thread(KB.build)
+        audit.record("kb.built_on_startup", **stats)
     yield
 
 

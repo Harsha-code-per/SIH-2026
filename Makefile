@@ -9,6 +9,8 @@ help:                    ## list commands
 # ---- the stack: containerised, containment enforced --------------------------
 
 up:                      ## build + start everything, detached (reads .env)
+	@test -f .env || { cp .env.example .env; echo "  created .env -- add your NVIDIA_API_KEY to it"; }
+	docker build -q -t wb-sandbox sandbox/ >/dev/null
 	docker compose up -d --build
 	@printf "\n  $(URL)   (make logs · make down · make prove)\n"
 

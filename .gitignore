@@ -1,6 +1,7 @@
 .venv/
 __pycache__/
 data/uploads/*
+!data/uploads/Inspection_Report_P-204.pdf   # demo fixture
 data/out/*
 data/models/
 !data/**/.gitkeep
