@@ -124,6 +124,27 @@ class Router:
     def models_for_tier(self, tier: str) -> list[dict]:
         return [m for m in self.models if m["tier"] == tier]
 
+    def orchestrator(self) -> dict | None:
+        """The best model that can actually drive a tool-calling loop.
+
+        The vision tiers exist to *read* things; they are chosen by the tools
+        that need them and cannot run a conversation. Handing the loop to one
+        produced a raw JSON tool call as the final answer.
+        """
+        capable = [m for m in self.models if "tools" in m["caps"]]
+        if not capable:
+            return None
+        # Strength is defined by the escalation chain -- the tier nothing
+        # escalates past is the strongest. Inferring it from the order routing
+        # rules happen to appear in picked the cheap tier.
+        def depth(tier: str) -> int:
+            seen, n = {tier}, 0
+            while (nxt := self.escalation.get(tier)) and nxt not in seen:
+                tier, n = nxt, n + 1
+                seen.add(tier)
+            return n
+        return min(capable, key=lambda m: depth(m["tier"]))
+
     def resolve(self, model: dict) -> str:
         """Registry entry -> the model name this mode actually calls."""
         return model[self.mode]

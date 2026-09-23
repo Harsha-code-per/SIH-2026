@@ -45,12 +45,13 @@ if __name__ == "__main__":
     print("\nagent citations: all checks passed")
 
 
-def test_search_budget_is_small_enough_to_leave_room_to_answer():
-    """Retrieval must not be able to consume the whole step budget."""
-    from app.agent import MAX_STEPS, SEARCH_BUDGET
-    assert SEARCH_BUDGET < MAX_STEPS / 2, (
-        f"a model could spend {SEARCH_BUDGET} of {MAX_STEPS} steps searching "
-        "and never reach the deliverable")
+def test_repeat_guards_leave_room_to_answer():
+    """Looping must not be able to consume the whole step budget."""
+    from app.agent import (MAX_STEPS, REPEATS_BEFORE_WITHDRAWAL,
+                           REPEATS_BEFORE_FORCING)
+    assert REPEATS_BEFORE_WITHDRAWAL < REPEATS_BEFORE_FORCING < MAX_STEPS / 2, (
+        "a model could spend the whole step budget repeating itself and never "
+        "reach the deliverable")
 
 
 def test_a_task_that_retrieved_nothing_is_not_ok():
@@ -73,10 +74,14 @@ def test_a_task_that_retrieved_nothing_is_not_ok():
 def test_repairable_verdicts_have_actionable_instructions():
     """A retry needs to say what to do differently, or it is just a re-roll."""
     from app.agent import REPAIRABLE
-    assert set(REPAIRABLE) == {"uncited", "invented-citation", "fabricated-output"}
+    assert set(REPAIRABLE) == {"uncited", "invented-citation",
+                               "fabricated-output", "malformed"}
     for verdict, hint in REPAIRABLE.items():
         assert len(hint) > 60, verdict
-        assert any(w in hint.lower() for w in ("again", "must", "use only")), verdict
+        # Each hint must name a concrete corrective action, not just complain.
+        assert any(w in hint.lower() for w in
+                   ("again", "must", "use only", "either", "report exactly",
+                    "run the code")), verdict
     # "empty" and "step-limit" are not listed: retrying them unchanged is a
     # re-roll, not a repair.
     assert "empty" not in REPAIRABLE and "step-limit" not in REPAIRABLE
@@ -99,6 +104,7 @@ def test_emit_survives_payloads_that_shadow_its_parameters():
     from app.agent import Agent
     from app.router import Router
     a = Agent(Router(), llm=None)
-    s = a._emit("route", "attachment", kind="page", label="x", n=99, path="a.pdf")
+    s = a._emit("route", "attachment", **{"kind": "page", "label": "x",
+                                          "n": 99, "path": "a.pdf"})
     assert s.kind == "route" and s.label == "attachment" and s.n == 1
-    assert s.detail["detail_kind"] == "page" and s.detail["path"] == "a.pdf"
+    assert s.detail["kind"] == "page" and s.detail["path"] == "a.pdf"

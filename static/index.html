@@ -586,7 +586,7 @@ function renderDecision(d) {
     <p class="rationale">${esc(d.why)}</p>`;
 }
 
-const SUBKEYS = ["steps","arguments","model_name","path","output","error","note","stdout"];
+const SUBKEYS = ["steps","arguments","model_name","path","output","error","note","stdout","why","orchestrator"];
 function addStep(s) {
   show($("#trace-empty"), false);
   const det = s.detail || {};

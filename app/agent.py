@@ -20,7 +20,7 @@ import asyncio
 import json
 import re
 import time
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field, asdict, replace
 from typing import AsyncIterator, Callable
 
 from . import tools as T
@@ -33,6 +33,8 @@ MAX_STEPS = 16
 # addresses each. Anything not listed here is returned as it stands rather than
 # retried in the hope that it improves.
 REPAIRABLE = {
+    "malformed": "Your previous reply was a JSON tool call printed as text. "
+                 "Either call the tool properly, or write the answer in prose.",
     "uncited": "Every factual claim in the document must carry the passage id "
                "it came from, written as [Document.md#12]. Put the ids in the "
                "body text and in the citations list of each section. Call "
@@ -175,13 +177,11 @@ class Agent:
         self.on_step = on_step or (lambda s: None)
         self.steps: list[Step] = []
 
-    def _emit(self, kind: str, label: str, **detail) -> Step:
-        # Detail comes from tool payloads, which are free to contain a key
-        # called "kind" or "label". Those would bind to the positional
-        # parameters and raise, so they are namespaced rather than trusted.
-        for reserved in ("kind", "label", "n", "ts"):
-            if reserved in detail:
-                detail[f"detail_{reserved}"] = detail.pop(reserved)
+    def _emit(self, kind: str, label: str, /, **detail) -> Step:
+        # kind and label are positional-only. Detail comes from tool payloads,
+        # which are free to contain keys of the same name; without the slash
+        # those bind to the parameters and raise before the body ever runs, so
+        # no amount of checking inside the function could have helped.
         s = Step(len(self.steps) + 1, kind, label, detail)
         self.steps.append(s)
         self.on_step(s)
@@ -198,7 +198,7 @@ class Agent:
             v = classify_attachment((ROOT / attachment).resolve())
             has_image = v["has_image"]
             self._emit("route", f"attachment · {v['kind'] or 'text'}",
-                       path=attachment, **{f"file_{k}": val for k, val in v.items()})
+                       path=attachment, **v)
             tool = {"page": "parse_page on each page that has no text layer",
                     "drawing": "describe_image"}.get(v["kind"], "read_document")
             note = (f"The user attached a file at: {attachment}\n"
@@ -206,6 +206,21 @@ class Agent:
 
         decision = self.router.route(prompt, has_image=has_image,
                                      image_kind=(v["kind"] if attachment else None))
+
+        # A vision tier reads an image; it cannot run the conversation. The
+        # tools reach for it themselves, so the loop stays with a model that
+        # can call tools.
+        chosen = next((m for m in self.router.models
+                       if m["id"] == decision.model_id), None)
+        if chosen and "tools" not in chosen["caps"]:
+            orch = self.router.orchestrator()
+            if orch:
+                self._emit("route", f"{decision.tier} reads · {orch['tier']} reasons",
+                           reader=decision.model_name,
+                           orchestrator=self.router.resolve(orch))
+                decision = replace(decision, model_id=orch["id"],
+                                   model_name=self.router.resolve(orch),
+                                   max_tokens=orch.get("max_tokens", 2048))
         self._emit("route", f"{decision.tier} · {decision.rule}", **decision.as_dict())
 
         # L0 never reaches a model.
@@ -394,6 +409,12 @@ class Agent:
         """Cheap post-checks. Each failure is a reason to escalate, not to hide."""
         if not answer and not deliverables:
             return "empty"
+
+        # A model that cannot call tools sometimes prints the call instead.
+        stripped = answer.lstrip()
+        if stripped.startswith(("{", "[")) and '"name"' in stripped[:200]:
+            self._emit("verify", "answer is a serialised tool call, not an answer")
+            return "malformed"
 
         # A model may write buggy code, see the error, and fix it -- that is the
         # loop working. But if it ran code and nothing ever succeeded, the task

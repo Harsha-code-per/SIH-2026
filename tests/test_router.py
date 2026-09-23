@@ -67,3 +67,15 @@ if __name__ == "__main__":
             fn()
             print(f"  ok  {name}")
     print("\nrouter: all checks passed")
+
+
+def test_the_orchestrator_can_call_tools():
+    """The vision tiers read images; they cannot drive a tool-calling loop.
+
+    Handing the loop to one made the model print a JSON tool call as its
+    final answer.
+    """
+    r = Router()
+    o = r.orchestrator()
+    assert o is not None and "tools" in o["caps"]
+    assert o["tier"] == "L2", f"expected the strongest tool-capable tier, got {o['tier']}"

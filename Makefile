@@ -43,12 +43,10 @@ dev:                     ## run on the host with autoreload (no enforcement)
 	$(VENV)/uvicorn app.main:app --reload --port 8117
 
 test:                    ## every check; sandbox ones need docker
-	@for t in tests/test_*.py; do \
-	  $(VENV)/python $$t >/dev/null 2>&1 && echo "  ok   $$t" || echo "  FAIL $$t"; \
-	done
+	@$(VENV)/python tests/run.py | tail -3
 
-test-v:                  ## the same, with each assertion named
-	@for t in tests/test_*.py; do echo "== $$t"; $(VENV)/python $$t || exit 1; done
+test-v:                  ## the same, naming every test
+	@$(VENV)/python tests/run.py
 
 sample:                  ## regenerate the demo fixtures (scan + P&ID)
 	$(VENV)/python scripts/make_scanned_sample.py
