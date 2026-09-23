@@ -98,3 +98,22 @@ Remaining errors are function-letter confusions inside bubbles — `FIC-2043`
 read as `FI-2043`, `LIC-1011` as `V-1011`. The numbers are right and the
 prefix is wrong. The interface shows the extracted tags so an engineer checks
 them, which is the correct division of labour for drawing work anyway.
+
+## Hosted latency inverts the tier ordering
+
+Measured on the same endpoint, three runs of an identical short prompt:
+
+| Model | median |
+|---|---|
+| `nemotron-3-super-120b-a12b` (L2) | **3.7s** |
+| `nemotron-3-nano-omni-30b-a3b` (L1) | 15.0s |
+
+The cheap tier is four times slower than the strong one. That is a property of
+someone else's scheduling, not of the models: 12B active parameters cost more
+per token than 3B, and on the org's own GPU the ordering returns.
+
+It does mean a task mis-routed to L1 is slow as well as weak, which is what a
+155-second answer to "what zone is 8.2 mm/s?" turned out to be. The fix was
+routing rather than model choice: a question that has to be checked against a
+document is multi-hop work however short it reads, so measurements with units,
+equipment tags and words like zone, limit and threshold now reach L2.

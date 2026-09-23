@@ -29,10 +29,18 @@ _CODE = re.compile(
     r"write a (program|script)|run this)\b",
     re.I,
 )
+# Anything that has to be checked against a document is multi-hop work, even
+# when it is phrased as a short question. "What zone is 8.2 mm/s?" reads like
+# chat and needs the SOP, a retrieval and a comparison.
 _ANALYZE = re.compile(
     r"\b(analy[sz]e|compare|assess|evaluate|review|audit|findings?|inspect\w*"
     r"|approval note|sop|procedure|criteri(?:a|on)|clause|acceptance"
-    r"|what does .{0,20}\brequire|who (?:must|should) approve|is .{0,30}(?:above|below|within))\b",
+    r"|zones?|limits?|thresholds?|baselines?|tolerance|spec(?:ification)?s?"
+    r"|what does .{0,20}\brequire|who (?:must|should) approve"
+    r"|is .{0,30}(?:above|below|within)|what .{0,20}\b(?:action|zone|limit))\b"
+    # A measurement with a unit, or an equipment tag, is engineering work.
+    r"|\d+(?:\.\d+)?\s*(?:mm/s|deg\s?c|°c|bar|kpa|mpa|rpm|kw|amps?)\b"
+    r"|\b[A-Z]{1,3}-\d{3,4}[A-Z]?\b",
     re.I,
 )
 _SUMMARIZE = re.compile(r"\b(summari[sz]e|tl;?dr|brief|digest|key points)\b", re.I)

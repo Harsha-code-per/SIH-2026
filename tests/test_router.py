@@ -79,3 +79,24 @@ def test_the_orchestrator_can_call_tools():
     o = r.orchestrator()
     assert o is not None and "tools" in o["caps"]
     assert o["tier"] == "L2", f"expected the strongest tool-capable tier, got {o['tier']}"
+
+
+def test_engineering_questions_reach_the_analysis_tier():
+    """A short question can still be multi-hop work.
+
+    "What zone is 8.2 mm/s?" reads like chat and needs the SOP retrieved and
+    a comparison made. Routing it to the cheap tier made it slow and wrong.
+    """
+    r = Router()
+    for q in ["Pump P-204 drive-end vibration is 8.2 mm/s RMS. What zone is that?",
+              "Is the bearing at 79 deg C acceptable?",
+              "What action does that require?",
+              "What is the vibration limit?",
+              "Check P-204 against the baseline"]:
+        assert r.route(q).tier == "L2", f"{q!r} routed to {r.route(q).tier}"
+
+
+def test_genuinely_cheap_work_stays_cheap():
+    r = Router()
+    for q in ["Summarize this memo", "Hello, who are you?", "Thanks, that helps"]:
+        assert r.route(q).tier == "L1", f"{q!r} routed to {r.route(q).tier}"
