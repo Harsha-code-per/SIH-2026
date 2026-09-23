@@ -205,6 +205,13 @@
   .row{display:flex;align-items:baseline;gap:10px;font-size:12.5px}
   .row .k{color:var(--muted);flex:none;width:86px;font-size:11.5px}
   .row .v{font-family:var(--mono);font-size:11.5px;color:var(--fg-2);overflow-wrap:anywhere;min-width:0}
+  .inp{background:var(--surface-2);border:1px solid var(--line);border-radius:5px;
+       padding:6px 9px;color:var(--fg);font:12px var(--sans);width:100%}
+  .inp:focus{outline:none;border-color:var(--accent)}
+  .pill-role{font:10px/1 var(--mono);padding:3px 7px;border-radius:4px;
+             background:var(--surface-2);border:1px solid var(--line);color:var(--muted)}
+  .pill-role.admin{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 40%,transparent)}
+  .pill-role.approver{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 40%,transparent)}
   .hint{display:block;background:var(--surface-2);border:1px solid var(--line);
         border-radius:5px;padding:6px 8px;font-size:10.5px;color:var(--muted);
         overflow-wrap:anywhere;line-height:1.5}
@@ -258,12 +265,60 @@
         border-radius:50%;display:inline-block;animation:sp .65s linear infinite}
   @keyframes sp{to{transform:rotate(360deg)}}
   @media(prefers-reduced-motion:reduce){.spin{animation:none}*{transition:none!important}}
+  .gate{position:fixed;inset:0;z-index:50;display:grid;place-items:center;
+        background:var(--bg);padding:24px}
+  /* A class selector outranks [hidden]'s default display:none, so the overlay
+     stayed on screen while every bit of state behind it said signed in. */
+  .gate[hidden]{display:none}
+  .gate .card{width:100%;max-width:380px;background:var(--surface);
+              border:1px solid var(--line);border-radius:14px;padding:28px 26px;
+              box-shadow:0 20px 60px rgba(0,0,0,.35);display:flex;
+              flex-direction:column;gap:13px}
+  .gate .mark-lg{width:40px;height:40px;color:var(--accent);margin-bottom:2px}
+  .gate h1{margin:0;font-size:17px;letter-spacing:-.01em}
+  .gate .sub{margin:-8px 0 8px;color:var(--muted);font-size:12.5px}
+  .gate label{display:flex;flex-direction:column;gap:6px;font:600 11px/1 var(--sans);
+              text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+  .gate input{background:var(--surface-2);border:1px solid var(--line);
+              border-radius:var(--r-sm);padding:10px 12px;color:var(--fg);
+              font:14px/1.4 var(--sans)}
+  .gate input:focus{outline:none;border-color:var(--accent);
+                    box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 14%,transparent)}
+  .gate button{margin-top:6px;padding:11px}
+  .gate .err{margin:0;color:var(--bad);font-size:12.5px}
+  .gate .foot{margin:6px 0 0;color:var(--muted);font-size:11.5px;text-align:center}
+  .who{display:flex;align-items:center;gap:8px;padding:5px 10px;border-radius:var(--r-sm);
+       border:1px solid var(--line);background:var(--surface-2);cursor:pointer}
+  .who .av{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;
+           background:var(--accent-dim);color:var(--accent);font:700 10px var(--mono);flex:none}
+  .who .nm{font:600 12px/1.2 var(--sans)}
+  .who .rl{font:10px/1 var(--mono);color:var(--muted);text-transform:uppercase;
+           letter-spacing:.06em}
   .hidden{display:none!important}
   .mono{font-family:var(--mono)}
   .muted{color:var(--muted)}
 </style>
 </head>
 <body>
+
+<div class="gate" id="gate" hidden>
+  <form class="card" id="loginform" autocomplete="on">
+    <div class="mark-lg">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 2.5 4 6v6c0 4.6 3.2 8.4 8 9.5 4.8-1.1 8-4.9 8-9.5V6l-8-3.5Z"/>
+        <path d="m9 12 2 2 4-4"/></svg>
+    </div>
+    <h1>Sovereign AI Workbench</h1>
+    <p class="sub">Mangalore Refinery and Petrochemicals · PS 26117</p>
+    <label>Username<input id="u" name="username" autocomplete="username" required autofocus></label>
+    <label>Password<input id="p" name="password" type="password"
+                          autocomplete="current-password" required></label>
+    <button class="btn-primary" type="submit" id="signin">Sign in</button>
+    <p class="err" id="loginerr" hidden></p>
+    <p class="foot">Runs on this machine. Nothing leaves the premises.</p>
+  </form>
+</div>
 
 <header class="topbar">
   <span class="brand">
@@ -283,6 +338,11 @@
     <span class="cell" id="s-endpoint"><span class="lab">Endpoint</span><span class="val">…</span></span>
     <span class="cell" id="s-contain"><span class="dot c-muted"></span>
       <span class="lab">Egress</span><span class="val">…</span></span>
+  </div>
+
+  <div class="who" id="who" title="Sign out" hidden>
+    <span class="av" id="av"></span>
+    <span><span class="nm" id="whoname"></span><br><span class="rl" id="whorole"></span></span>
   </div>
 
   <button class="iconbtn" id="theme" title="Toggle theme" aria-label="Toggle colour theme">
@@ -395,6 +455,7 @@
           <button role="tab" aria-selected="true" data-tab="models">Models</button>
           <button role="tab" aria-selected="false" data-tab="kb">Knowledge</button>
           <button role="tab" aria-selected="false" data-tab="audit">Audit</button>
+          <button role="tab" aria-selected="false" data-tab="admin" id="tab-admin" hidden>Admin</button>
         </div>
       </div>
       <div class="pbody">
@@ -409,6 +470,20 @@
           <table id="kbdocs"></table>
           <div class="bar"><button class="btn-ghost btn-sm" id="rebuild">Rebuild index</button></div>
         </div>
+        <div data-panel="admin" class="hidden">
+          <table id="usertable"></table>
+          <form class="rows" id="adduser" style="margin-top:12px">
+            <div class="row"><span class="k">Username</span>
+              <input class="v inp" name="username" required></div>
+            <div class="row"><span class="k">Password</span>
+              <input class="v inp" name="password" type="password" required></div>
+            <div class="row"><span class="k">Role</span>
+              <select class="v inp" name="role" id="rolesel"></select></div>
+            <div class="bar"><button class="btn-ghost btn-sm" type="submit">Add user</button>
+              <span class="muted" style="font-size:11.5px" id="adminmsg"></span></div>
+          </form>
+        </div>
+
         <div data-panel="audit" class="hidden">
           <ul class="netlog" id="auditlog" style="max-height:300px;border-top:0"></ul>
           <div class="bar"><button class="btn-ghost btn-sm" id="refresh-audit">Refresh</button>
@@ -443,6 +518,108 @@ const STAGES = [
   ["deliver", "Deliver"],
 ];
 
+/* ---------- identity ---------- */
+let token = null, me = null, roles = {};
+try { token = localStorage.getItem("token"); } catch {}
+
+/** Every call carries the token, and a 401 sends us back to the gate. */
+async function api(path, opts = {}) {
+  const res = await fetch(path, {
+    ...opts,
+    headers: { ...(opts.headers || {}),
+               ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+  });
+  if (res.status === 401) { signOut(true); throw new Error("sign in required"); }
+  return res;
+}
+
+function signOut(expired = false) {
+  token = null; me = null;
+  try { localStorage.removeItem("token"); } catch {}
+  show($("#who"), false);
+  $("#gate").hidden = false;
+  if (expired) {
+    $("#loginerr").hidden = false;
+    $("#loginerr").textContent = "Your session expired. Sign in again.";
+  }
+}
+
+$("#who").onclick = async () => {
+  await api("/api/logout", { method: "POST" }).catch(() => {});
+  signOut();
+};
+
+$("#loginform").onsubmit = async e => {
+  e.preventDefault();
+  const btn = $("#signin");
+  btn.disabled = true; btn.textContent = "Signing in…";
+  $("#loginerr").hidden = true;
+  try {
+    const fd = new FormData();
+    fd.set("username", $("#u").value);
+    fd.set("password", $("#p").value);
+    const res = await fetch("/api/login", { method: "POST", body: fd });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.detail || "sign in failed");
+    token = body.token;
+    try { localStorage.setItem("token", token); } catch {}
+    $("#p").value = "";
+    await start();
+  } catch (err) {
+    $("#loginerr").hidden = false;
+    $("#loginerr").textContent = err.message;
+  } finally {
+    btn.disabled = false; btn.textContent = "Sign in";
+  }
+};
+
+function renderWho() {
+  show($("#who"), true);
+  $("#who").hidden = false;
+  $("#av").textContent = (me.display || me.username).slice(0, 2).toUpperCase();
+  $("#whoname").textContent = me.display || me.username;
+  $("#whorole").textContent = me.role;
+  // Controls a role cannot use are hidden rather than left to fail on click.
+  $("#tab-admin").hidden = !me.capabilities.includes("manage_users");
+  show($("#reload"), me.capabilities.includes("manage_models"));
+  show($("#rebuild"), me.capabilities.includes("manage_kb"));
+  const canAudit = me.capabilities.includes("read_audit");
+  $$('[role="tab"]').forEach(b => { if (b.dataset.tab === "audit") b.hidden = !canAudit; });
+}
+
+/* ---------- admin ---------- */
+async function loadUsers() {
+  const d = await (await api("/api/users")).json();
+  roles = d.roles;
+  const t = $("#usertable");
+  t.innerHTML = "<tr><th>User</th><th>Role</th><th></th></tr>";
+  for (const u of d.users) {
+    const tr = t.insertRow();
+    tr.innerHTML = `<td>${esc(u.display || u.username)}
+        <span class="meta muted mono" style="display:block;font-size:10.5px">${esc(u.username)}</span></td>
+      <td><span class="pill-role ${esc(u.role)}">${esc(u.role)}</span></td>
+      <td style="width:1%"><button class="btn-ghost btn-sm" data-rm="${esc(u.username)}">Remove</button></td>`;
+  }
+  t.querySelectorAll("[data-rm]").forEach(b => b.onclick = async () => {
+    const res = await api(`/api/users/${b.dataset.rm}`, { method: "DELETE" });
+    const body = await res.json();
+    $("#adminmsg").textContent = res.ok ? `Removed ${b.dataset.rm}` : body.detail;
+    if (res.ok) loadUsers();
+  });
+  const sel = $("#rolesel");
+  sel.innerHTML = Object.keys(roles)
+    .map(r => `<option value="${esc(r)}">${esc(r)}</option>`).join("");
+}
+
+$("#adduser").onsubmit = async e => {
+  e.preventDefault();
+  const res = await api("/api/users", { method: "POST", body: new FormData(e.target) });
+  const body = await res.json();
+  $("#adminmsg").textContent = res.ok
+    ? `Added ${body.user.username}` : body.detail;
+  if (res.ok) { e.target.reset(); loadUsers(); }
+};
+
 /* ---------- theme ---------- */
 try { const t = localStorage.getItem("theme"); if (t) document.documentElement.dataset.theme = t; } catch {}
 $("#theme").onclick = () => {
@@ -457,6 +634,7 @@ $$('[role="tab"]').forEach(b => b.onclick = () => {
   $$("[data-panel]").forEach(p => show(p, p.dataset.panel === b.dataset.tab));
   if (b.dataset.tab === "audit") loadAudit();
   if (b.dataset.tab === "kb") loadKb();
+  if (b.dataset.tab === "admin") loadUsers();
 });
 
 /* ---------- presets ---------- */
@@ -487,7 +665,7 @@ function setStage(state) { renderPipe(state); }
 
 /* ---------- status ---------- */
 async function loadStatus() {
-  const s = await (await fetch("/api/status")).json();
+  const s = await (await api("/api/status")).json();
   const sov = s.mode === "sovereign";
   const m = $("#s-mode");
   m.querySelector(".dot").className = "dot " + (sov ? "c-ok" : "c-warn");
@@ -505,7 +683,7 @@ async function loadStatus() {
 }
 
 async function loadKb() {
-  const d = await (await fetch("/api/kb/documents")).json();
+  const d = await (await api("/api/kb/documents")).json();
   const t = $("#kbdocs");
   t.innerHTML = "<tr><th>Document</th><th>Chunks</th></tr>";
   d.documents.forEach(doc => t.insertRow().innerHTML =
@@ -514,7 +692,8 @@ async function loadKb() {
 }
 
 async function loadAudit() {
-  const d = await (await fetch("/api/audit?n=120")).json();
+  if (!me?.capabilities.includes("read_audit")) return;
+  const d = await (await api("/api/audit?n=120")).json();
   const ul = $("#auditlog");
   ul.innerHTML = d.entries.slice().reverse().map(e =>
     `<li title="${esc(JSON.stringify(e))}"><span class="muted">${hhmmss(e.ts)}</span>
@@ -523,14 +702,14 @@ async function loadAudit() {
 }
 
 $("#reload").onclick = async e => {
-  const r = await (await fetch("/api/registry/reload", { method: "POST" })).json();
+  const r = await (await api("/api/registry/reload", { method: "POST" })).json();
   await loadStatus();
   e.target.textContent = r.added.length ? `Added ${r.added.join(", ")}` : "No change";
   setTimeout(() => e.target.textContent = "Reload registry", 2400);
 };
 $("#rebuild").onclick = async e => {
   e.target.disabled = true; e.target.textContent = "Rebuilding…";
-  const r = await (await fetch("/api/kb/build", { method: "POST" })).json();
+  const r = await (await api("/api/kb/build", { method: "POST" })).json();
   await loadKb(); e.target.disabled = false;
   e.target.textContent = `${r.documents} docs · ${r.chunks} chunks`;
   setTimeout(() => e.target.textContent = "Rebuild index", 2600);
@@ -552,7 +731,7 @@ function renderHistory() {
 }
 
 $("#newchat").onclick = async () => {
-  if (sessionId) await fetch(`/api/sessions/${sessionId}/clear`, { method: "POST" });
+  if (sessionId) await api(`/api/sessions/${sessionId}/clear`, { method: "POST" });
   sessionId = null; turns.length = 0;
   attachment = null; $("#file").value = "";
   renderHistory(); renderAttachment();
@@ -584,7 +763,7 @@ async function upload(file) {
   if (!file) return;
   const fd = new FormData();
   fd.set("file", file);
-  const r = await (await fetch("/api/upload", { method: "POST", body: fd })).json();
+  const r = await (await api("/api/upload", { method: "POST", body: fd })).json();
   if (r.error) { alert(r.error); return; }
   attachment = { ...r, name: file.name, isImage: IMAGE_LIKE.test(file.name) };
   renderAttachment();
@@ -695,7 +874,7 @@ async function run() {
   }
 
   try {
-    const res = await fetch("/api/run", { method: "POST", body: fd, signal: controller.signal });
+    const res = await api("/api/run", { method: "POST", body: fd, signal: controller.signal });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const reader = res.body.getReader(), dec = new TextDecoder();
     let buf = "";
@@ -773,7 +952,7 @@ $("#trip").onclick = async e => {
   const b = e.target;
   b.disabled = true; b.textContent = "Attempting…";
   try {
-    const r = await (await fetch("/api/tripwire", { method: "POST" })).json();
+    const r = await (await api("/api/tripwire", { method: "POST" })).json();
     const out = $("#trip-out"); show(out, true);
     out.style.borderColor = r.blocked ? "var(--ok)" : "var(--bad)";
     out.innerHTML = `<strong class="${r.blocked ? "c-ok" : "c-bad"}">
@@ -819,8 +998,13 @@ function addEgress(e) {
   show($("#net-empty"), false);
 }
 
-const es = new EventSource("/api/egress/stream");
-es.onmessage = ev => {
+let es = null;
+function watchEgress() {
+  es?.close();
+  es = new EventSource("/api/egress/stream");
+  es.onmessage = onEgress;
+}
+function onEgress(ev) {
   const d = JSON.parse(ev.data);
   if (d.type === "snapshot") renderEgress(d);
   else if (d.type === "egress") {
@@ -829,9 +1013,22 @@ es.onmessage = ev => {
     if (k) $(k).textContent = +$(k).textContent + 1;
     if (d.verdict === "LEAKED") $("#c-leaked").className = "num c-bad";
   }
-};
+}
 
-renderPipe(); loadStatus(); loadKb();
+/* ---------- boot ---------- */
+async function start() {
+  const res = await fetch("/api/me",
+    { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  if (!res.ok) { signOut(); return; }
+  const body = await res.json();
+  me = body.user; roles = body.roles;
+  $("#gate").hidden = true;
+  renderWho(); renderPipe();
+  await loadStatus(); await loadKb();
+  watchEgress();
+}
+
+start();
 </script>
 </body>
 </html>

@@ -11,12 +11,13 @@ import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, UploadFile, File, Form
+from fastapi import Depends, FastAPI, Form, File, HTTPException, Header, UploadFile
 from fastapi.responses import StreamingResponse, FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import audit
 from .agent import Agent
+from .auth import ROLES, USERS, User
 from .sessions import SESSIONS, Turn
 from .egress import EgressMonitor
 from .kb import KB
@@ -47,6 +48,112 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Sovereign AI Workbench", lifespan=lifespan)
 
 
+# ---------------------------------------------------------------------------
+# Identity. Every action carries a name so the audit log is worth keeping.
+# ---------------------------------------------------------------------------
+def current_user(authorization: str = Header(default="")) -> User:
+    token = authorization.removeprefix("Bearer ").strip()
+    user = USERS.whoami(token)
+    if not user:
+        raise HTTPException(status_code=401, detail="sign in required")
+    return user
+
+
+def needs(capability: str):
+    def dep(user: User = Depends(current_user)) -> User:
+        if not user.can(capability):
+            raise HTTPException(
+                status_code=403,
+                detail=f"your role ({user.role}) cannot {capability}")
+        return user
+    return dep
+
+
+@app.post("/api/login")
+async def login(username: str = Form(...), password: str = Form(...)):
+    token = USERS.login(username, password)
+    if not token:
+        # One message for both cases: saying which was wrong tells an attacker
+        # which usernames exist.
+        audit.record("login.failed", username=username[:64])
+        raise HTTPException(status_code=401, detail="wrong username or password")
+    user = USERS.whoami(token)
+    audit.record("login", user=user.username, role=user.role)
+    return {"token": token, "user": user.public()}
+
+
+@app.post("/api/logout")
+async def logout(authorization: str = Header(default="")):
+    USERS.logout(authorization.removeprefix("Bearer ").strip())
+    return {"ok": True}
+
+
+@app.get("/api/me")
+async def me(user: User = Depends(current_user)):
+    return {"user": user.public(), "roles": {r: sorted(c) for r, c in ROLES.items()}}
+
+
+@app.post("/api/me/password")
+async def change_password(current: str = Form(...), new: str = Form(...),
+                          user: User = Depends(current_user)):
+    from .auth import verify_password
+    if not verify_password(current, user.password):
+        raise HTTPException(status_code=403, detail="current password is wrong")
+    try:
+        USERS.set_password(user.username, new)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    audit.record("password.changed", user=user.username)
+    return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
+# Administration
+# ---------------------------------------------------------------------------
+@app.get("/api/users")
+async def list_users(user: User = Depends(needs("manage_users"))):
+    return {"users": [u.public() for u in USERS.users.values()],
+            "roles": {r: sorted(c) for r, c in ROLES.items()}}
+
+
+@app.post("/api/users")
+async def add_user(username: str = Form(...), password: str = Form(...),
+                   role: str = Form("engineer"), display: str = Form(""),
+                   user: User = Depends(needs("manage_users"))):
+    try:
+        created = USERS.add(username, password, role, display)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    audit.record("user.created", by=user.username, username=created.username,
+                 role=created.role)
+    return {"user": created.public()}
+
+
+@app.post("/api/users/{username}/role")
+async def set_role(username: str, role: str = Form(...),
+                   user: User = Depends(needs("manage_users"))):
+    if username not in USERS.users:
+        raise HTTPException(status_code=404, detail="no such user")
+    try:
+        USERS.set_role(username, role)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    audit.record("user.role_changed", by=user.username, username=username, role=role)
+    return {"user": USERS.users[username].public()}
+
+
+@app.delete("/api/users/{username}")
+async def remove_user(username: str, user: User = Depends(needs("manage_users"))):
+    try:
+        removed = USERS.remove(username)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    if not removed:
+        raise HTTPException(status_code=404, detail="no such user")
+    audit.record("user.removed", by=user.username, username=username)
+    return {"ok": True}
+
+
 @app.get("/api/status")
 async def status():
     return {
@@ -64,7 +171,7 @@ async def status():
 
 
 @app.post("/api/registry/reload")
-async def reload_registry():
+async def reload_registry(user: User = Depends(needs("manage_models"))):
     """Re-read models.yaml. This is the 'add a model without redesign' proof."""
     before = {m["id"] for m in router.models}
     router.reload()
@@ -80,9 +187,10 @@ async def preview_route(prompt: str = Form(...), has_image: bool = Form(False)):
 
 
 @app.post("/api/tripwire")
-async def tripwire(target: str = Form("https://api.openai.com/v1/models")):
+async def tripwire(target: str = Form("https://api.openai.com/v1/models"),
+                   user: User = Depends(current_user)):
     r = await monitor.tripwire(target)
-    audit.record("tripwire", **r)
+    audit.record("tripwire", user=user.username, **r)
     return r
 
 
@@ -111,7 +219,8 @@ async def egress_stream():
 
 @app.post("/api/run")
 async def run(prompt: str = Form(...), has_image: bool = Form(False),
-              attachment: str = Form(""), session: str = Form("")):
+              attachment: str = Form(""), session: str = Form(""),
+              user: User = Depends(needs("run"))):
     """Execute a task, streaming every step as it happens.
 
     The trace is the product as much as the answer is: an engineer approving a
@@ -122,8 +231,8 @@ async def run(prompt: str = Form(...), has_image: bool = Form(False),
     sess = SESSIONS.get(session or None)
     # A follow-up about an attached report should not need it re-attached.
     carried = attachment or sess.carried_attachment() or ""
-    audit.record("task.received", prompt=prompt[:500], mode=MODE,
-                 attachment=carried or None, session=sess.id,
+    audit.record("task.received", user=user.username, prompt=prompt[:500],
+                 mode=MODE, attachment=carried or None, session=sess.id,
                  turn=len(sess.turns) + 1)
 
     # The attachment is passed through separately rather than pasted into the
@@ -162,7 +271,8 @@ async def run(prompt: str = Form(...), has_image: bool = Form(False),
                       evidence=final.get("evidence", []),
                       deliverables=final.get("deliverables", []),
                       attachment=carried or None))
-        audit.record("task.completed", verdict=final.get("verdict"),
+        audit.record("task.completed", user=user.username,
+                     verdict=final.get("verdict"),
                      model=final["decision"].get("model_name"), session=sess.id,
                      deliverables=[d["path"] for d in final["deliverables"]])
         yield f"data: {json.dumps({'type': 'final', 'session': sess.id, **final}, default=str)}\n\n"
@@ -173,9 +283,9 @@ async def run(prompt: str = Form(...), has_image: bool = Form(False),
 
 
 @app.post("/api/kb/build")
-async def kb_build():
+async def kb_build(user: User = Depends(needs("manage_kb"))):
     stats = await asyncio.to_thread(KB.build)
-    audit.record("kb.rebuilt", **stats)
+    audit.record("kb.rebuilt", user=user.username, **stats)
     return stats
 
 
@@ -213,12 +323,13 @@ async def clear_session(sid: str):
 
 
 @app.get("/api/audit")
-async def audit_log(n: int = 150):
+async def audit_log(n: int = 150, user: User = Depends(needs("read_audit"))):
     return {"entries": audit.tail(n)}
 
 
 @app.post("/api/upload")
-async def upload(file: UploadFile = File(...)):
+async def upload(file: UploadFile = File(...),
+                 user: User = Depends(needs("upload"))):
     UPLOADS.mkdir(parents=True, exist_ok=True)
     name = Path(file.filename or "upload.bin").name
     if not name or name.startswith("."):
@@ -231,7 +342,8 @@ async def upload(file: UploadFile = File(...)):
         return JSONResponse({"error": "file larger than 32MB"}, status_code=413)
     UPLOADS.mkdir(parents=True, exist_ok=True)
     dest.write_bytes(data)
-    audit.record("upload", name=dest.name, bytes=dest.stat().st_size)
+    audit.record("upload", user=user.username, name=dest.name,
+                 bytes=dest.stat().st_size)
     return {"path": str(dest.relative_to(ROOT)), "bytes": dest.stat().st_size}
 
 

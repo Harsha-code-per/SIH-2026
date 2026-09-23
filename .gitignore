@@ -11,3 +11,4 @@ data/uploads/*
 !data/uploads/PID_CDU_P-204.png
 data/kb_index.npz
 data/kb_meta.json
+data/users.json

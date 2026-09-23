@@ -16,6 +16,9 @@ services:
     environment:
       MODE: prototype
       NVIDIA_API_KEY: ${NVIDIA_API_KEY:-}
+      # Only used to seed the very first account. Left unset, one is generated
+      # and printed to the log once.
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
     volumes:
       - ./data:/srv/data
       - /var/run/docker.sock:/var/run/docker.sock   # to launch the code sandbox
