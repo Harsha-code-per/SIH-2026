@@ -17,6 +17,7 @@ from fastapi.staticfiles import StaticFiles
 
 from . import audit
 from .agent import Agent
+from .sessions import SESSIONS, Turn
 from .egress import EgressMonitor
 from .kb import KB
 from .llm import LLM, load_dotenv
@@ -110,7 +111,7 @@ async def egress_stream():
 
 @app.post("/api/run")
 async def run(prompt: str = Form(...), has_image: bool = Form(False),
-              attachment: str = Form("")):
+              attachment: str = Form(""), session: str = Form("")):
     """Execute a task, streaming every step as it happens.
 
     The trace is the product as much as the answer is: an engineer approving a
@@ -118,8 +119,12 @@ async def run(prompt: str = Form(...), has_image: bool = Form(False),
     just the conclusion.
     """
     q: asyncio.Queue = asyncio.Queue()
+    sess = SESSIONS.get(session or None)
+    # A follow-up about an attached report should not need it re-attached.
+    carried = attachment or sess.carried_attachment() or ""
     audit.record("task.received", prompt=prompt[:500], mode=MODE,
-                 attachment=attachment or None)
+                 attachment=carried or None, session=sess.id,
+                 turn=len(sess.turns) + 1)
 
     # The attachment is passed through separately rather than pasted into the
     # prompt. Appending guidance text to the prompt fed words like "drawing"
@@ -134,7 +139,8 @@ async def run(prompt: str = Form(...), has_image: bool = Form(False),
 
         async def drive():
             try:
-                return await agent.run(prompt, attachment=attachment or None)
+                return await agent.run(prompt, attachment=carried or None,
+                                       history=sess.history())
             finally:
                 q.put_nowait(None)
 
@@ -152,10 +158,14 @@ async def run(prompt: str = Form(...), has_image: bool = Form(False),
             audit.record("task.failed", error=f"{type(e).__name__}: {e}")
             yield f"data: {json.dumps({'type': 'error', 'error': f'{type(e).__name__}: {e}'})}\n\n"
             return
+        sess.add(Turn(prompt=prompt, answer=final.get("answer", ""),
+                      evidence=final.get("evidence", []),
+                      deliverables=final.get("deliverables", []),
+                      attachment=carried or None))
         audit.record("task.completed", verdict=final.get("verdict"),
-                     model=final["decision"].get("model_name"),
+                     model=final["decision"].get("model_name"), session=sess.id,
                      deliverables=[d["path"] for d in final["deliverables"]])
-        yield f"data: {json.dumps({'type': 'final', **final}, default=str)}\n\n"
+        yield f"data: {json.dumps({'type': 'final', 'session': sess.id, **final}, default=str)}\n\n"
 
     return StreamingResponse(gen(), media_type="text/event-stream",
                              headers={"Cache-Control": "no-cache",
@@ -185,6 +195,21 @@ async def kb_documents():
         docs[c.doc] = docs.get(c.doc, 0) + 1
     return {"chunks": len(KB.chunks),
             "documents": [{"name": d, "chunks": n} for d, n in sorted(docs.items())]}
+
+
+@app.get("/api/sessions")
+async def sessions():
+    return {"sessions": SESSIONS.all()}
+
+
+@app.post("/api/sessions/new")
+async def new_session():
+    return {"session": SESSIONS.get(None).id}
+
+
+@app.post("/api/sessions/{sid}/clear")
+async def clear_session(sid: str):
+    return {"dropped": SESSIONS.drop(sid)}
 
 
 @app.get("/api/audit")

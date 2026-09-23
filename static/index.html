@@ -165,6 +165,13 @@
              font-size:12.5px;color:var(--fg-2)}
 
   /* ---- trace ---------------------------------------------------------- */
+  .turns{list-style:none;margin:0;padding:0;max-height:240px;overflow:auto}
+  .turns li{padding:8px 0;border-bottom:1px solid var(--line)}
+  .turns li:last-child{border-bottom:0}
+  .turns .q{font-size:12.5px;color:var(--fg);display:flex;gap:8px}
+  .turns .q::before{content:"›";color:var(--accent);font-weight:700}
+  .turns .a{font-size:12px;color:var(--muted);margin:4px 0 0 14px;
+            display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
   .trace{list-style:none;margin:0;padding:0;max-height:min(46vh,440px);overflow:auto}
   .trace li{display:grid;grid-template-columns:26px 78px minmax(0,1fr);gap:10px;
             padding:7px 0;border-bottom:1px solid var(--line);align-items:start}
@@ -289,6 +296,8 @@
   <div class="col">
     <section class="panel">
       <div class="phead"><h2>Task</h2><span class="grow"></span>
+        <span class="note" id="turns"></span>
+        <button class="btn-ghost btn-sm" id="newchat" type="button">New conversation</button>
         <span class="note" id="run-timer"></span></div>
       <div class="pbody">
         <div class="composer">
@@ -312,6 +321,11 @@
         <div class="attached hidden" id="attached"></div>
         <div class="presets" id="presets"></div>
       </div>
+    </section>
+
+    <section class="panel hidden" id="p-history">
+      <div class="phead"><h2>Conversation</h2></div>
+      <div class="pbody"><ol class="turns" id="history"></ol></div>
     </section>
 
     <section class="panel hidden" id="p-pipeline">
@@ -523,6 +537,31 @@ $("#rebuild").onclick = async e => {
 };
 $("#refresh-audit").onclick = loadAudit;
 
+/* ---------- conversation ---------- */
+let sessionId = null;
+const turns = [];
+
+function renderHistory() {
+  show($("#p-history"), turns.length > 0);
+  $("#turns").textContent = turns.length
+    ? `${turns.length} turn${turns.length > 1 ? "s" : ""}` : "";
+  $("#history").innerHTML = turns.map(t => `
+    <li><div class="q">${esc(t.q)}</div>
+        <div class="a">${esc(t.a)}</div></li>`).join("");
+  const h = $("#history"); h.scrollTop = h.scrollHeight;
+}
+
+$("#newchat").onclick = async () => {
+  if (sessionId) await fetch(`/api/sessions/${sessionId}/clear`, { method: "POST" });
+  sessionId = null; turns.length = 0;
+  attachment = null; $("#file").value = "";
+  renderHistory(); renderAttachment();
+  show($("#p-result"), false); show($("#p-decision"), false);
+  show($("#p-pipeline"), false); show($("#p-evidence"), false);
+  $("#trace").innerHTML = ""; show($("#trace-empty"), true);
+  $("#prompt").value = ""; $("#prompt").focus();
+};
+
 /* ---------- attachments ---------- */
 let attachment = null;                 // {path, bytes, name, isImage}
 const IMAGE_LIKE = /\.(pdf|png|jpe?g|webp|tiff?)$/i;
@@ -649,6 +688,7 @@ async function run() {
 
   const fd = new FormData();
   fd.set("prompt", prompt);
+  if (sessionId) fd.set("session", sessionId);
   if (attachment) {
     fd.set("attachment", attachment.path);
     fd.set("has_image", String(attachment.isImage));
@@ -683,6 +723,9 @@ async function run() {
             }
           }
         } else if (e.type === "final") {
+          sessionId = e.session ?? sessionId;
+          turns.push({ q: prompt, a: (e.answer || "").slice(0, 240) || "(no answer)" });
+          renderHistory();
           for (const [id] of STAGES) if (st[id] === "active") st[id] = "done";
           if (e.deliverables?.length) st.deliver = "done";
           st.verify = "done";
@@ -715,6 +758,7 @@ async function run() {
     $("#run-timer").textContent = ((performance.now() - t0) / 1000).toFixed(1) + "s";
     $("#go").disabled = false; $("#stop").disabled = true;
     $("#trace-state").textContent = "";
+    if (turns.length) { $("#prompt").value = ""; $("#prompt").focus(); }
     loadAudit();
   }
 }

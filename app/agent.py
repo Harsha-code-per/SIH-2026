@@ -189,7 +189,9 @@ class Agent:
 
     async def run(self, prompt: str, *, has_image: bool = False,
                   attachment: str | None = None,
+                  history: list[dict] | None = None,
                   allow_escalation: bool = True) -> dict:
+        self.history = history or []
         note = None
         if attachment:
             from pathlib import Path as _P
@@ -204,7 +206,14 @@ class Agent:
             note = (f"The user attached a file at: {attachment}\n"
                     f"Inspect it with read_document, then use {tool}.")
 
-        decision = self.router.route(prompt, has_image=has_image,
+        # A follow-up is routed on the conversation, not on its own words:
+        # "and the temperature?" carries none of the signal its first turn did,
+        # and would drop to the cheap tier mid-analysis.
+        routing_text = prompt
+        if history:
+            prior = " ".join(m["content"] for m in history if m["role"] == "user")
+            routing_text = f"{prior} {prompt}"
+        decision = self.router.route(routing_text, has_image=has_image,
                                      image_kind=(v["kind"] if attachment else None))
 
         # A vision tier reads an image; it cannot run the conversation. The
@@ -270,6 +279,7 @@ class Agent:
     async def _converse(self, prompt: str, decision: Decision,
                         repair: str | None = None, note: str | None = None) -> dict:
         messages = [{"role": "system", "content": SYSTEM},
+                    *getattr(self, "history", []),
                     {"role": "user", "content": prompt
                      + (f"\n\n{note}" if note else "")
                      + (f"\n\nIMPORTANT: {repair}" if repair else "")}]
