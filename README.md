@@ -1,120 +1,73 @@
-# Sovereign On-Premise Agentic AI Workbench
+# Sovereign AI Workbench
 
-SIH 2026 · Problem Statement **26117** · Mangalore Refinery and Petrochemicals Limited
+**Smart India Hackathon 2026 · Problem Statement 26117 · Mangalore Refinery and
+Petrochemicals Limited**
 
 A self-hosted agentic AI workbench for confidential industrial knowledge work.
-Open-weight models only, automatic task routing across tiers, real file
-deliverables, grounded in the organisation's own documents — and containment
-you can watch rather than take on faith.
-
-## What the problem statement asks for, and where it is
-
-| Requirement | Where | State |
-|---|---|---|
-| Model auto-selection across ≥2 task types | `app/router.py`, `models.yaml` | six paths, L0→LV2 |
-| New models addable without redesign | `models.yaml` + **Reload registry** | config edit only |
-| Agentic task end to end | `app/agent.py` | scanned report → approval note |
-| Coding task run and verified in a sandbox | `app/tools.py::run_python` | `--network none`, tested |
-| Multimodal | `app/ocr.py`, `parse_page`, `describe_image` | scanned PDF, drawings |
-| Real deliverables | `write_docx`, `write_xlsx` | Word/Excel, not chat replies |
-| Local knowledge base | `app/kb.py` | chunk-level provenance |
-| **Proof of no external calls** | `app/egress.py`, `egress/proxy.conf` | **enforced, measured** |
-
-## Two modes, one codebase
-
-| | `prototype` | `sovereign` |
-|---|---|---|
-| Inference | NVIDIA NIM, hosted, open-weight models | local, in-network |
-| Permitted destinations | exactly 1, via the gateway | **none** — no gateway at all |
-| Network | `internal: true` — no default route | `internal: true` — no default route |
-| Everything else | local | local |
-
-Knowledge base, embeddings, document store, code sandbox and file tools are
-local in **both** modes. Only the model endpoint moves, and it moves by config,
-because everything speaks the OpenAI protocol.
-
-## Run it
+It reads scanned inspection reports and engineering drawings, checks findings
+against the organisation's own SOPs, and produces approval notes, spreadsheets
+and verified code — with every claim cited and **nothing leaving the premises,
+proven rather than promised**.
 
 ```bash
-uv venv --python 3.12 .venv && uv pip install -r requirements.txt
-cp .env.example .env          # add NVIDIA_API_KEY for prototype mode
-docker build -t wb-sandbox sandbox/
-make sample                   # build the scanned-report fixture
-make dev                      # http://127.0.0.1:8117
-make test                     # every check
+make up          # then open http://127.0.0.1:8117
 ```
 
-Containerised, where containment is actually enforced:
+---
 
-```bash
-make proto        # app + gateway; one destination reachable
-make sovereign    # no gateway; nothing reachable
-```
+## What it does
 
-## Proving the sovereign claim
+- **Routes each task to the right model** — arithmetic to a calculator with no
+  model at all, quick questions to a small model, analysis to a large one,
+  scans and drawings to vision models. Deterministic and explainable.
+- **Works as an agent** — plans, calls local tools, checks its own output, and
+  repairs it instead of answering once.
+- **Reads what engineers actually have** — scanned PDFs with no text layer, and
+  P&IDs.
+- **Produces real deliverables** — Word approval notes with a fixed six-section
+  structure, Excel registers, code that ran in a sandbox.
+- **Cites everything** — hybrid retrieval over local SOPs, and verification
+  reads the generated document back to confirm every citation resolves.
+- **Proves containment** — the app has no route to the internet. A tripwire
+  deliberately calls OpenAI on camera and is blocked in a millisecond.
 
-The problem statement asks for proof, not a statement.
+## Measured, not claimed
 
-1. **Enforcement, without privileges.** The app runs on a Docker network marked
-   `internal: true`, so it has no default route. The internet is not blocked
-   for it; it is unreachable. A gateway container is the single deliberate
-   opening — the only container on both networks, forwarding exactly one
-   destination by TCP passthrough, so it never sees plaintext and never holds a
-   key while certificates are still validated end to end. Removing the gateway
-   (`make sovereign`) leaves no opening at all.
-2. **Observation.** `tcpdump` runs as an independent observer, and enforcement
-   is *detected* by reading the routing table rather than assumed. Watching
-   nothing leave is not the same as nothing being able to leave, so `contained`
-   requires both. If the observer is unavailable the UI reads `UNVERIFIED` — it
-   never shows a green badge it cannot back. Traffic that left without being
-   permitted is `LEAKED`, never `ALLOWED`.
-3. **The tripwire.** A button that genuinely attempts `https://api.openai.com`.
+| | |
+|---|---|
+| "What zone is 8.2 mm/s?" — retrieved, compared, cited | **6 s** |
+| Scanned page transcription | **48 s** first time · **0 s** cached |
+| Engineering drawing, tiled and concurrent | **12 s** |
+| Tripwire to `api.openai.com` | **blocked in ~1 ms**, at DNS |
+| Automated tests | **109 passing** |
 
-Measured from inside the running stack:
+## Documentation
 
-```
-no default route            api.openai.com   → does not resolve
-1.1.1.1:53      unroutable  github.com       → does not resolve
-tripwire        BLOCKED in 1 ms (DNS)        permitted host → 200, 81 models
-```
+**Starting work on this project — human or AI agent? Read [`AGENTS.md`](AGENTS.md).**
 
-`make watch` runs the observer alone, for a demo split-screen.
+| | |
+|---|---|
+| [`AGENTS.md`](AGENTS.md) | Start here. Context, rules, where things are |
+| [`docs/ROADMAP.md`](docs/ROADMAP.md) | Demo scope vs finale scope, with status |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | How a request flows; every module; the API |
+| [`docs/DECISIONS.md`](docs/DECISIONS.md) | Why things are the way they are — read before changing them |
+| [`docs/OPERATIONS.md`](docs/OPERATIONS.md) | Running, configuring, troubleshooting |
+| [`docs/PROBLEM-STATEMENT.md`](docs/PROBLEM-STATEMENT.md) | PS 26117, mapped requirement by requirement to code |
+| [`docs/model-benchmark.md`](docs/model-benchmark.md) | Why each model was chosen, with measurements |
+| [`docs/playbooks/`](docs/playbooks/) | Step-by-step recipes for common tasks |
 
-Because nothing may be fetched at runtime, the embedding model is baked into
-the image at build time. A model downloaded on first use fails in an air-gapped
-deployment, and it fails quietly.
+## Honest status
 
-## Grounding
+Demo-ready. Every expected-solution bullet in the problem statement has a
+working, tested path.
 
-Retrieved passages carry document, page and section. The agent must cite them,
-and verification **reads the generated document back** to check the citations
-that were actually written. Three failure modes are caught and escalated rather
-than returned:
+Inference currently uses **hosted open-weight models** on NVIDIA NIM, reached
+through a gateway that permits exactly one destination. Moving it on-premise is
+a configuration change — [`docs/playbooks/go-local.md`](docs/playbooks/go-local.md).
+The full list of limitations is in [`docs/ROADMAP.md`](docs/ROADMAP.md), and it
+belongs on a slide rather than in a judge's question.
 
-- an answer citing nothing when passages were retrieved
-- a citation that does not resolve to a retrieved passage
-- a number presented as program output that the sandbox never printed
+## Requirements
 
-## Layout
-
-```
-app/router.py      deterministic task router, no LLM in the hot path
-app/agent.py       tool-calling loop, grounding checks, loop guards
-app/tools.py       kb_search, read_document, parse_page, describe_image,
-                   calculate, run_python, write_docx, write_xlsx
-app/kb.py          chunking with provenance, numpy cosine retrieval
-app/ocr.py         text-layer detection, then the document model
-app/egress.py      containment observation and the tripwire
-app/llm.py         OpenAI-protocol client; NIM, Ollama, vLLM alike
-models.yaml        model registry, routing rules, per-model token budgets
-egress/sentinel.sh nftables enforcement
-docs/model-benchmark.md   why each model was chosen, with measurements
-```
-
-## Notes
-
-- Model ids drift. `make verify-models` checks the registry against the live
-  catalogue before a demo.
-- Of 81 models the NIM catalogue lists, 11 accept completions on our key; the
-  tiers were picked from what actually works, measured. See the benchmark.
-- `.env` is gitignored and must stay that way.
+Docker with Compose v2, and an NVIDIA NIM API key from
+<https://build.nvidia.com>. Nothing else — the stack is containerised.

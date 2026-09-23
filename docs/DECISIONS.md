@@ -315,6 +315,22 @@ it said signed in. `.gate[hidden]{display:none}` fixes it; watch for this on
 any element that has both.
 **Where:** `static/index.html`.
 
+### D-44 · Secrets are checked by path, not only by content
+`scripts/check-secrets.sh` runs as a pre-commit hook; `make up` installs it.
+**Why:** `data/secret.key` — the token signing key — was committed and pushed.
+The check at the time grepped diffs for `nvapi-`, which a binary key file does
+not contain. Anything under `data/` outside a short allowlist is now refused as
+runtime state. The key was rotated; history was not rewritten, since that needs
+a force-push over a shared remote and rotation already makes the old key
+worthless. **Never trust the key in commit `f1c3c20`.**
+**Where:** `scripts/check-secrets.sh`, `.gitignore`.
+
+### D-45 · A pattern beginning with `-` needs `grep -e`
+**Why:** the private-key pattern starts with `-----`, grep read it as an
+option, the check failed silently, and the script still printed "clean". Each
+check in `check-secrets.sh` has a negative control proving it fires.
+**Where:** `scripts/check-secrets.sh`.
+
 ---
 
 ## Environment facts worth knowing

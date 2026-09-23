@@ -88,7 +88,7 @@ real bug that is written up in `docs/DECISIONS.md`.
 5. **Ship the models, never fetch at runtime.** The embedding model is baked
    into the image at build time. Anything downloaded on first use fails in an
    air-gapped deployment, and fails quietly.
-6. **Every non-trivial behaviour has a runnable test.** 101 currently, via
+6. **Every non-trivial behaviour has a runnable test.** 109 currently, via
    `make test`. Tests are collected by `tests/run.py`, never by a `__main__`
    block — see decision D-41 in `docs/DECISIONS.md` for why.
 7. **The interface loads zero external resources.** No CDN, no Google Fonts. An
@@ -123,13 +123,40 @@ next block of work is in `docs/ROADMAP.md`, which distinguishes *demo scope*
 
 - **Commit and push regularly**, at each meaningful checkpoint. The GitHub repo
   is the submission artifact, so uncommitted work is missing work.
-- **Never commit secrets.** `.env` is gitignored. Check any diff for `nvapi-`
-  before committing.
+- **Never commit secrets.** A pre-commit hook (`scripts/check-secrets.sh`,
+  installed by `make up`) refuses key material, env files, tokens, password
+  hashes and any runtime state under `data/`. Do not bypass it with
+  `--no-verify`. Grepping a diff for `nvapi-` is not enough — that is exactly
+  how the token signing key got committed (D-44).
 - **Run `make test` before committing.** It is fast and it catches real things.
 - **Verify by running, not by reading.** Most bugs in `docs/DECISIONS.md` were
   invisible in the source and obvious the moment something was executed.
 - **Write down why, not just what.** If you discover something the hard way,
   add it to `docs/DECISIONS.md` so the next agent does not rediscover it.
+- **The interface is held to the standard of a leading product company** —
+  clean, aligned, efficient, and easy for anyone to navigate. It is the primary
+  evidence a judge sees of everything underneath, so layout, spacing and
+  interaction feedback are part of the deliverable, not polish for later.
+  Verify interface changes by looking at them in a browser.
+- **Local inference is deferred by design**, not missing. It is a configuration
+  change (`docs/playbooks/go-local.md`). Do not treat it as a blocker or
+  recommend building it early; build the software around it.
+- **When asked what remains, list the gaps and what each costs**, and let the
+  team set the order.
+
+## Updating this documentation
+
+These files are the project's memory. An agent that finishes a piece of work
+should leave them accurate:
+
+- Tick the item in `docs/ROADMAP.md` and correct its status.
+- Add anything learned the hard way to `docs/DECISIONS.md` as the next `D-n`.
+- If a command, endpoint or file moved, fix `docs/ARCHITECTURE.md` or
+  `docs/OPERATIONS.md`.
+- Update the test count in this file and the README if it changed.
+
+Edit the playbooks in `docs/playbooks/`, never the tool-specific wrappers
+(`.claude/skills/`, `.cursor/`, `.github/`) — those only point back here.
 
 ## Playbooks
 

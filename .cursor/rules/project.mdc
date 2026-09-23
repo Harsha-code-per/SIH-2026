@@ -1,0 +1,10 @@
+---
+description: Project context for the Sovereign AI Workbench
+alwaysApply: true
+---
+
+Read `AGENTS.md` at the repository root first — it is the single source of
+project context. Then `docs/ROADMAP.md` for what is next, and
+`docs/DECISIONS.md` before changing any existing behaviour.
+
+Playbooks for common tasks are in `docs/playbooks/`.
