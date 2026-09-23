@@ -16,8 +16,23 @@ sys.path.insert(0, str(ROOT))
 DOCS = [ROOT / "AGENTS.md", ROOT / "README.md", ROOT / "CLAUDE.md",
         *sorted((ROOT / "docs").rglob("*.md"))]
 
-# Created at runtime rather than committed, so their absence is expected.
-RUNTIME_PATHS = {"data/models/", "data/out/", "data/cache/"}
+def _is_runtime(path: str) -> bool:
+    """Is this path created at runtime rather than committed?
+
+    Anything git ignores is runtime state by definition, so it is legitimately
+    absent from a fresh clone. A hardcoded list passed on the machine that wrote
+    it -- where the index, the audit log and the signing key all existed -- and
+    failed on the first clean clone.
+    """
+    import subprocess
+    # Both forms: a directory-only pattern like "data/models/" only matches a
+    # path git can tell is a directory, which a nonexistent one is not unless
+    # it keeps its trailing slash.
+    for candidate in {path, path.rstrip("/")}:
+        if subprocess.run(["git", "check-ignore", "-q", candidate],
+                          cwd=ROOT, capture_output=True).returncode == 0:
+            return True
+    return False
 
 
 def _text(p: Path) -> str:
@@ -30,7 +45,7 @@ def test_every_referenced_path_exists():
         for m in re.finditer(r"`((?:app|docs|tests|scripts|static|egress|data|sandbox)/[\w./-]+?)(?:::\w+)?`",
                              _text(d)):
             path = m.group(1).rstrip(".")
-            if "*" in path or "<" in path or path in RUNTIME_PATHS:
+            if "*" in path or "<" in path or _is_runtime(path):
                 continue
             if not (ROOT / path).exists():
                 missing.append(f"{d.name}: {path}")
