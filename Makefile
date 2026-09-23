@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help up down logs restart open dev test test-v prove sample verify-models sovereign enforce unenforce watch
+.PHONY: help hooks secrets up down logs restart open dev test test-v prove sample verify-models sovereign enforce unenforce watch
 VENV := .venv/bin
 URL  := http://127.0.0.1:8117
 export DOCKER_UID := $(shell id -u)
@@ -10,7 +10,7 @@ help:                    ## list commands
 
 # ---- the stack: containerised, containment enforced --------------------------
 
-up:                      ## build + start everything, detached (reads .env)
+up: hooks                ## build + start everything, detached (reads .env)
 	@test -f .env || { cp .env.example .env; echo "  created .env -- add your NVIDIA_API_KEY to it"; }
 	docker build -q -t wb-sandbox sandbox/ >/dev/null
 	docker compose up -d --build
@@ -54,6 +54,12 @@ sample:                  ## regenerate the demo fixtures (scan + P&ID)
 
 verify-models:           ## check models.yaml against the live catalogue
 	$(VENV)/python -m app.verify_models
+
+hooks:                   ## install the pre-commit secret check in this clone
+	@ln -sf ../../scripts/check-secrets.sh .git/hooks/pre-commit
+
+secrets:                 ## scan every tracked file for credentials
+	@scripts/check-secrets.sh --all
 
 # ---- optional host-level extras ---------------------------------------------
 

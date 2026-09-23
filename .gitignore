@@ -12,3 +12,6 @@ data/uploads/*
 data/kb_index.npz
 data/kb_meta.json
 data/users.json
+data/secret.key
+*.key
+*.pem
