@@ -7,6 +7,7 @@ merely discouraged.
 from __future__ import annotations
 
 import ast
+import hashlib
 import json
 import re
 import operator as op
@@ -450,17 +451,40 @@ def _ask_vision(tier: str, prompt: str, image_b64: str, max_tokens: int = 3000) 
     return (r.choices[0].message.content or "").strip()
 
 
+CACHE = ROOT / "data" / "cache"
+
+
+def _cache_key(p: Path, *parts: str) -> Path:
+    """Content-addressed, so editing a file invalidates its own entries."""
+    h = hashlib.sha256(p.read_bytes()).hexdigest()[:16]
+    tail = "-".join(str(x) for x in parts)
+    return CACHE / f"{p.stem}.{h}.{tail}.json"
+
+
 def parse_page(path: str, page: int) -> dict:
     """Transcribe one scanned page with the document model.
 
     Only for pages that have no text layer -- read_document says which.
+
+    Transcriptions are cached on disk, keyed by the file's own hash. A page
+    takes a minute or two to transcribe and the result does not change, so
+    re-reading the same report -- which is exactly what happens when a workflow
+    is run twice, or demonstrated -- should not pay for it again.
     """
     from .ocr import PARSE_PROMPT, page_image_b64
     p = (ROOT / path).resolve()
     if not p.is_relative_to(ROOT / "data"):
         raise ValueError(f"refusing to read outside data/: {path}")
+
+    key = _cache_key(p, "page", page)
+    if key.exists():
+        return json.loads(key.read_text()) | {"cached": True}
+
     text = _ask_vision("LV", PARSE_PROMPT, page_image_b64(p, page))
-    return {"path": path, "page": page, "source": "vlm", "text": text}
+    out = {"path": path, "page": page, "source": "vlm", "text": text}
+    CACHE.mkdir(parents=True, exist_ok=True)
+    key.write_text(json.dumps(out))
+    return out | {"cached": False}
 
 
 def describe_image(path: str, question: str = "") -> dict:
@@ -478,7 +502,13 @@ def describe_image(path: str, question: str = "") -> dict:
         "Describe this engineering drawing. List every equipment tag, instrument "
         "tag and line number you can read, exactly as printed. If you cannot read "
         "something, say so rather than guessing.")
-    return {"path": path, "source": "vlm", "description": _ask_vision("LV2", prompt, b64)}
+    key = _cache_key(p, "img", hashlib.sha256(prompt.encode()).hexdigest()[:8])
+    if key.exists():
+        return json.loads(key.read_text()) | {"cached": True}
+    out = {"path": path, "source": "vlm", "description": _ask_vision("LV2", prompt, b64)}
+    CACHE.mkdir(parents=True, exist_ok=True)
+    key.write_text(json.dumps(out))
+    return out | {"cached": False}
 
 
 TOOLS["parse_page"] = _t("parse_page",

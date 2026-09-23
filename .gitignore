@@ -9,3 +9,4 @@ data/models/
 data/kb_index.npz
 data/kb_meta.json
 data/audit.jsonl
+data/cache/
