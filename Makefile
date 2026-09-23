@@ -50,8 +50,9 @@ test:                    ## every check; sandbox ones need docker
 test-v:                  ## the same, with each assertion named
 	@for t in tests/test_*.py; do echo "== $$t"; $(VENV)/python $$t || exit 1; done
 
-sample:                  ## regenerate the scanned inspection report fixture
+sample:                  ## regenerate the demo fixtures (scan + P&ID)
 	$(VENV)/python scripts/make_scanned_sample.py
+	$(VENV)/python scripts/make_pid_sample.py
 
 verify-models:           ## check models.yaml against the live catalogue
 	$(VENV)/python -m app.verify_models

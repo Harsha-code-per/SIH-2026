@@ -8,10 +8,12 @@ from __future__ import annotations
 
 import ast
 import hashlib
+import io
 import json
 import re
 import operator as op
 import subprocess
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
@@ -440,7 +442,7 @@ def _vision_model(tier: str) -> str:
     raise RuntimeError(f"no model registered for tier {tier}")
 
 
-def _ask_vision(tier: str, prompt: str, image_b64: str, max_tokens: int = 3000) -> str:
+def _ask_vision(tier: str, prompt: str, image_b64: str, max_tokens: int = 2000) -> str:
     client, _ = _vision()
     r = client.chat.completions.create(
         model=_vision_model(tier), max_tokens=max_tokens, temperature=0.0,
@@ -487,9 +489,84 @@ def parse_page(path: str, page: int) -> dict:
     return out | {"cached": False}
 
 
+# Above this, a drawing is read in overlapping tiles rather than whole.
+# A P&ID sheet is mostly white space with small text, and sending the whole
+# sheet downscales a tag like "FIC-2043" to a few pixels tall -- measured, the
+# models read 4 of 9 tags that way. Tiles give each region the model's full
+# resolution budget.
+TILE_ABOVE_PX = 1500
+TILE_OVERLAP = 0.12          # so a tag on a seam is whole in one tile
+
+
+def _tiles(img, max_px: int = TILE_ABOVE_PX):
+    """Split into overlapping tiles, or yield the image whole if it is small."""
+    from PIL import Image
+    w, h = img.size
+    if max(w, h) <= max_px:
+        return [((0, 0, w, h), img)]
+    # Ceiling, not rounding: a sheet 1.5 tiles tall still needs two rows, and
+    # rounding down leaves the text as small as it was.
+    import math
+    cols = max(1, math.ceil(w / (max_px * 0.8)))
+    rows = max(1, math.ceil(h / (max_px * 0.8)))
+    ox, oy = int(w / cols * TILE_OVERLAP), int(h / rows * TILE_OVERLAP)
+    out = []
+    for r in range(rows):
+        for c in range(cols):
+            box = (max(0, int(c * w / cols) - ox), max(0, int(r * h / rows) - oy),
+                   min(w, int((c + 1) * w / cols) + ox),
+                   min(h, int((r + 1) * h / rows) + oy))
+            out.append((box, img.crop(box)))
+    return out
+
+
+def _b64_png(img) -> str:
+    import base64, io
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return base64.b64encode(buf.getvalue()).decode()
+
+
+# Ordered longest-first: a line number like 6"-CR-2041-A1A must not be cut
+# short by an equipment-tag alternative matching its prefix.
+_TAG = re.compile(
+    r'\d+"-[A-Z]{2,3}-\d{3,4}-[A-Z0-9]+'     # line number
+    r'|\b[A-Z]{1,4}-\d{3,4}[A-Z]?\b'          # tag: V-101, P-204A, LIC-1011
+)
+
+
+def _looks_degenerate(text: str, tags: list[str]) -> str | None:
+    """Has the model stopped reading and started counting?
+
+    A vision model that loses its place emits a plausible-looking sequence --
+    V-102, V-103, ... V-329 -- from a sheet holding one vessel. Recall stays
+    perfect and precision collapses, which is the worse failure: an engineer
+    can work with a missing tag and cannot work with an invented one.
+    """
+    lines = [l.strip() for l in text.splitlines() if l.strip()]
+    if len(lines) > 12 and len(set(lines)) / len(lines) < 0.5:
+        return "repeated lines"
+    # A run of consecutive numbers within one prefix is counting, not reading.
+    by_prefix: dict[str, list[int]] = {}
+    for t in tags:
+        m = re.match(r"^([A-Z]{1,4})-(\d{2,4})", t)
+        if m:
+            by_prefix.setdefault(m.group(1), []).append(int(m.group(2)))
+    for prefix, nums in by_prefix.items():
+        nums = sorted(set(nums))
+        run = best = 1
+        for a, b in zip(nums, nums[1:]):
+            run = run + 1 if b == a + 1 else 1
+            best = max(best, run)
+        if best >= 6:
+            return f"consecutive run of {best} in {prefix}-"
+    return None
+
+
 def describe_image(path: str, question: str = "") -> dict:
     """Read a photograph or engineering drawing (P&ID, schematic, sketch)."""
     import base64
+    from PIL import Image
     p = (ROOT / path).resolve()
     if not p.is_relative_to(ROOT / "data"):
         raise ValueError(f"refusing to read outside data/: {path}")
@@ -499,13 +576,66 @@ def describe_image(path: str, question: str = "") -> dict:
     else:
         b64 = base64.b64encode(p.read_bytes()).decode()
     prompt = question or (
-        "Describe this engineering drawing. List every equipment tag, instrument "
-        "tag and line number you can read, exactly as printed. If you cannot read "
-        "something, say so rather than guessing.")
+        "Read this engineering drawing (P&ID). List every equipment tag, "
+        "instrument tag and line number exactly as printed.\n"
+        # ISA-5.1 draws an instrument as a circle with the function letters on
+        # one line and the loop number on the next. Read literally, that is two
+        # fragments, and every instrument on the sheet was being missed.
+        "An instrument is drawn as a circle containing two lines of text: the "
+        "function letters on top and the loop number underneath. Report each as "
+        "a single tag joined by a hyphen -- a circle reading 'PI' above '2041' "
+        "is the tag PI-2041.\n"
+        "Equipment is a box or a pump symbol with its tag beside it, such as "
+        "V-101 or P-204A. Line numbers look like 6\"-CR-2041-A1A.\n"
+        "If you cannot read something, say so rather than guessing.")
     key = _cache_key(p, "img", hashlib.sha256(prompt.encode()).hexdigest()[:8])
     if key.exists():
         return json.loads(key.read_text()) | {"cached": True}
-    out = {"path": path, "source": "vlm", "description": _ask_vision("LV2", prompt, b64)}
+
+    img = Image.open(io.BytesIO(base64.b64decode(b64))).convert("RGB")
+    tiles = _tiles(img)
+
+    def read(i_tile):
+        i, (_, tile) = i_tile
+        where = "" if len(tiles) == 1 else (
+            f" This is region {i} of {len(tiles)} of a larger drawing; "
+            f"describe only what is visible here.")
+        png = _b64_png(tile)
+        said = _ask_vision("LV2", prompt + where, png)
+        bad = _looks_degenerate(said, _TAG.findall(said))
+        if bad:
+            # One retry with a tighter cap; a shorter budget rarely runs away.
+            said = _ask_vision("LV2", prompt + where, png, max_tokens=700)
+            bad = _looks_degenerate(said, _TAG.findall(said))
+        return i, said, bad
+
+    # Tiles are independent, and reading them one at a time made a single sheet
+    # take six minutes.
+    parts, tags, discarded = [], [], []
+    with ThreadPoolExecutor(max_workers=min(4, len(tiles))) as pool:
+        for i, said, bad in sorted(pool.map(read, enumerate(tiles, 1))):
+            if bad:
+                discarded.append({"region": i, "reason": bad})
+                continue
+            parts.append(said if len(tiles) == 1 else f"[region {i}] {said}")
+            tags += _TAG.findall(said)
+
+    # Tiles overlap, so the same tag appears more than once. Order-preserving
+    # de-duplication keeps the reading order a person would expect.
+    seen, unique = set(), []
+    for t in tags:
+        if t not in seen:
+            seen.add(t)
+            unique.append(t)
+
+    out = {"path": path, "source": "vlm", "tiles": len(tiles),
+           "tags_found": unique, "description": "\n\n".join(parts)}
+    if discarded:
+        # Said plainly rather than hidden: a region that could not be read is
+        # a gap in the answer, and the reader should know which one.
+        out["unreadable_regions"] = discarded
+        out["description"] += ("\n\nRegions not reported: " + ", ".join(
+            f"region {d['region']} ({d['reason']})" for d in discarded))
     CACHE.mkdir(parents=True, exist_ok=True)
     key.write_text(json.dumps(out))
     return out | {"cached": False}

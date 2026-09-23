@@ -1,12 +1,13 @@
 .venv/
 __pycache__/
-data/uploads/*
-!data/uploads/Inspection_Report_P-204.pdf   # demo fixture
 data/out/*
 data/models/
 !data/**/.gitkeep
 .env
-data/kb_index.npz
-data/kb_meta.json
 data/audit.jsonl
 data/cache/
+data/uploads/*
+!data/uploads/Inspection_Report_P-204.pdf
+!data/uploads/PID_CDU_P-204.png
+data/kb_index.npz
+data/kb_meta.json
