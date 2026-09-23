@@ -23,6 +23,30 @@ KB_DIR = ROOT / "data" / "kb"
 INDEX = ROOT / "data" / "kb_index.npz"
 META = ROOT / "data" / "kb_meta.json"
 EMBED_MODEL = "BAAI/bge-small-en-v1.5"   # 133MB ONNX, no torch
+BM25_K1, BM25_B = 1.5, 0.75              # standard Okapi parameters
+
+# A term in a section heading counts for more than the same term in prose.
+# "clause 4.2" should return clause 4.2, not the later clause that happens to
+# mention it -- the heading says what a passage *is*, the body only what it
+# talks about.
+HEADING_BOOST = 4
+
+# How much weight the dense side carries. Tuned on the query set in
+# tests/test_retrieval.py: 0.7 is the only value that retrieves every expected
+# passage within the top five. Lexical-heavy settings win slightly more
+# first places but drop a passage entirely, and for an agent that reads the
+# whole result set a missing passage costs far more than a lower rank.
+DEFAULT_ALPHA = 0.7
+
+# Tokens worth matching exactly. Keeping dots and hyphens inside a token is the
+# point: "4.2" must not become "4" and "2", and "P-204" must not become "p" and
+# "204", or the identifiers an engineer searches by are destroyed by the
+# tokeniser before scoring ever happens.
+_TERM = re.compile(r"[a-z]+(?:[-.][a-z0-9]+)*|\d+(?:\.\d+)+|[a-z]*\d[\w-]*", re.I)
+
+
+def _terms(text: str) -> list[str]:
+    return [t.lower() for t in _TERM.findall(text)]
 
 
 @dataclass
@@ -32,6 +56,18 @@ class Chunk:
     doc: str
     page: int | None = None
     section: str | None = None
+
+    @property
+    def searchable(self) -> str:
+        """Heading plus body.
+
+        The clause number lives in the heading -- "4.2", "ISO 10816-3",
+        "MRPL-QA-12" -- while the requirement lives in the body. Indexing only
+        the body meant the identifiers an engineer searches by were absent from
+        the index entirely, which no amount of scoring can recover from.
+        """
+        return f"{self.section} {self.doc}\n{self.text}" if self.section else \
+               f"{self.doc}\n{self.text}"
 
     def cite(self) -> str:
         bits = [self.doc]
@@ -95,6 +131,31 @@ class KnowledgeBase:
         self._embed_model = embed_model
         self.chunks: list[Chunk] = []
         self.vectors: np.ndarray | None = None
+        self.df: dict[str, int] | None = None      # term -> document frequency
+        self.tf_matrix: dict[str, list] = {}       # term -> [(chunk index, count)]
+        self.lengths: np.ndarray | None = None
+        self.avg_len: float = 1.0
+
+    def _index_terms(self) -> None:
+        """Build the lexical index. Pure counting, no model, milliseconds."""
+        from collections import Counter
+        self.df, self.tf_matrix = {}, {}
+        lengths = []
+        for i, c in enumerate(self.chunks):
+            counts = Counter(_terms(c.text))
+            body_len = sum(counts.values()) or 1
+            if c.section:
+                for t in _terms(c.section):
+                    counts[t] += HEADING_BOOST
+            counts[c.doc.lower()] += 1
+            # Length normalisation uses the body only, so boosting a heading
+            # does not make the passage look longer and penalise itself.
+            lengths.append(body_len)
+            for term, n in counts.items():
+                self.df[term] = self.df.get(term, 0) + 1
+                self.tf_matrix.setdefault(term, []).append((i, n))
+        self.lengths = np.array(lengths, dtype=np.float32)
+        self.avg_len = float(self.lengths.mean()) if len(lengths) else 1.0
 
     @property
     def embedder(self):
@@ -138,7 +199,8 @@ class KnowledgeBase:
                        if p.is_file() and p.suffix.lower() in {".txt", ".md", ".pdf"})
         per = {p.name: self.ingest_file(p) for p in files}
         if self.chunks:
-            self.vectors = self.embed([c.text for c in self.chunks])
+            self.vectors = self.embed([c.searchable for c in self.chunks])
+            self._index_terms()
             np.savez_compressed(INDEX, vectors=self.vectors)
             META.write_text(json.dumps([asdict(c) for c in self.chunks]))
         return {"documents": len(files), "chunks": len(self.chunks), "per_document": per}
@@ -148,17 +210,64 @@ class KnowledgeBase:
             return False
         self.chunks = [Chunk(**d) for d in json.loads(META.read_text())]
         self.vectors = np.load(INDEX)["vectors"]
+        self._index_terms()      # cheap enough to rebuild rather than persist
         return True
 
     # -- retrieval ----------------------------------------------------------
-    def search(self, query: str, k: int = 6) -> list[dict]:
+    def _bm25(self, query: str) -> np.ndarray:
+        """Okapi BM25 over the chunk corpus.
+
+        Embeddings are good at meaning and bad at identifiers. "clause 4.2",
+        "P-204" and "ISO 10816-3" are exactly what an engineer types, and a
+        dense vector treats them as unremarkable tokens -- the agent was
+        visibly flailing on "clause 4.2" while the passage sat in the index.
+        Lexical scoring finds a rare token immediately.
+        """
+        q = _terms(query)
+        if not q or self.df is None:
+            return np.zeros(len(self.chunks), dtype=np.float32)
+        n = len(self.chunks)
+        scores = np.zeros(n, dtype=np.float32)
+        for term in q:
+            df = self.df.get(term, 0)
+            if not df:
+                continue
+            # Rare terms carry most of the signal, which is the whole point here.
+            idf = np.log(1 + (n - df + 0.5) / (df + 0.5))
+            tf = self.tf_matrix.get(term)
+            if tf is None:
+                continue
+            for i, f in tf:
+                norm = f * (BM25_K1 + 1) / (
+                    f + BM25_K1 * (1 - BM25_B + BM25_B * self.lengths[i] / self.avg_len))
+                scores[i] += idf * norm
+        return scores
+
+    @staticmethod
+    def _normalise(a: np.ndarray) -> np.ndarray:
+        """Map to 0..1 so two different scoring scales can be mixed."""
+        lo, hi = float(a.min()), float(a.max())
+        return (a - lo) / (hi - lo) if hi > lo else np.zeros_like(a)
+
+    def search(self, query: str, k: int = 6, alpha: float = DEFAULT_ALPHA) -> list[dict]:
+        """Hybrid retrieval: dense similarity blended with BM25.
+
+        alpha weights the dense side; 0.5 is an even blend. Both are normalised
+        first because cosine similarity and BM25 do not share a scale.
+        """
         if self.vectors is None or not self.chunks:
             return []
-        sims = self.vectors @ self.embed([query])[0]
+        dense = self.vectors @ self.embed([query])[0]
+        lexical = self._bm25(query)
+        combined = (alpha * self._normalise(dense)
+                    + (1 - alpha) * self._normalise(lexical))
         k = min(k, len(self.chunks))
-        idx = np.argpartition(-sims, k - 1)[:k]
-        idx = idx[np.argsort(-sims[idx])]
-        return [self.chunks[i].as_dict() | {"score": round(float(sims[i]), 4)}
+        idx = np.argpartition(-combined, k - 1)[:k]
+        idx = idx[np.argsort(-combined[idx])]
+        return [self.chunks[i].as_dict() | {
+                    "score": round(float(combined[i]), 4),
+                    "dense": round(float(dense[i]), 4),
+                    "lexical": round(float(lexical[i]), 4)}
                 for i in idx]
 
 
