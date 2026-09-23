@@ -2,6 +2,8 @@
 .PHONY: help up down logs restart open dev test test-v prove sample verify-models sovereign enforce unenforce watch
 VENV := .venv/bin
 URL  := http://127.0.0.1:8117
+export DOCKER_UID := $(shell id -u)
+export DOCKER_GID := $(shell id -g)
 
 help:                    ## list commands
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-14s %s\n", $$1, $$2}'

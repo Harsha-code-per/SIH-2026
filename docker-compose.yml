@@ -9,6 +9,10 @@
 services:
   app:
     build: .
+    # Run as the invoking user, so files written into the bind-mounted data/
+    # -- cached transcriptions, generated documents, the audit log -- belong to
+    # whoever started the stack rather than to root.
+    user: "${DOCKER_UID:-1000}:${DOCKER_GID:-1000}"
     environment:
       MODE: prototype
       NVIDIA_API_KEY: ${NVIDIA_API_KEY:-}

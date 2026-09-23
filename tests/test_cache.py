@@ -6,6 +6,7 @@ demonstrate, and pointlessly slow in production.
 """
 import json
 import sys
+import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -15,14 +16,19 @@ import app.tools as T
 SAMPLE = T.ROOT / "data" / "uploads" / "Inspection_Report_P-204.pdf"
 
 
-def _clear(p):
-    for f in T.CACHE.glob(f"{p.stem}.*"):
-        f.unlink()
+def _isolate(tmp: Path):
+    """Point the cache at a scratch directory.
+
+    The real cache is written by the container, so a test that deleted entries
+    from it would depend on who owns them.
+    """
+    T.CACHE = tmp
+    tmp.mkdir(parents=True, exist_ok=True)
 
 
-def test_second_parse_is_served_from_cache():
+def test_second_parse_is_served_from_cache(tmp_path=None):
     assert SAMPLE.exists(), "run: make sample"
-    _clear(SAMPLE)
+    _isolate(Path(tempfile.mkdtemp()))
     calls = []
     real = T._ask_vision
     T._ask_vision = lambda *a, **k: (calls.append(a[0]), "TRANSCRIBED TEXT")[1]
@@ -37,7 +43,7 @@ def test_second_parse_is_served_from_cache():
 
 
 def test_pages_are_cached_independently():
-    _clear(SAMPLE)
+    _isolate(Path(tempfile.mkdtemp()))
     calls = []
     real = T._ask_vision
     T._ask_vision = lambda *a, **k: (calls.append(a), f"page text")[1]
