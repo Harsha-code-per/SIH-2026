@@ -48,6 +48,23 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Sovereign AI Workbench", lifespan=lifespan)
 
 
+@app.middleware("http")
+async def no_store_api(request, call_next):
+    """Nothing under /api may be cached by the browser.
+
+    API responses carried no Cache-Control and varied only on Origin, so a
+    browser could answer a later request for the same URL from its cache --
+    including a request with no token, after sign-out. On a workstation shared
+    between shifts that replays one user's documents to whoever sits down next.
+    The interface's own assets are content-hashed and stay cacheable.
+    """
+    response = await call_next(request)
+    if request.url.path.startswith("/api/"):
+        response.headers["Cache-Control"] = "no-store"
+        response.headers["Pragma"] = "no-cache"
+    return response
+
+
 # ---------------------------------------------------------------------------
 # Identity. Every action carries a name so the audit log is worth keeping.
 # ---------------------------------------------------------------------------

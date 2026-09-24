@@ -221,3 +221,13 @@
 .shiki, .shiki span { color: var(--shiki-light); background-color: transparent !important; }
 .dark .shiki, .dark .shiki span { color: var(--shiki-dark); }
 .shiki { font-family: var(--font-mono); line-height: 1.6; }
+
+/* Retrieved passages: SOP clauses carry tables, so they render as markdown,
+   in a tighter scale than answers. */
+.prose-passage { font-size: 13px; line-height: 1.6; color: color-mix(in oklab, var(--foreground) 85%, transparent); overflow-wrap: anywhere; }
+.prose-passage > * + * { margin-top: 0.6em; }
+.prose-passage strong { font-weight: 600; color: var(--foreground); }
+.prose-passage table { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
+.prose-passage th, .prose-passage td { border-bottom: 1px solid var(--border); padding: 0.3em 0.5em; text-align: left; vertical-align: top; }
+.prose-passage th { color: var(--muted-foreground); font-weight: 600; white-space: nowrap; }
+.prose-passage ul, .prose-passage ol { padding-left: 1.2em; list-style: disc; }

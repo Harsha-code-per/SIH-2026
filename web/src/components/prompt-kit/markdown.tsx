@@ -33,8 +33,10 @@ const INITIAL_COMPONENTS: Partial<Components> = {
     if (isInline) {
       return (
         <span
+          // Edited: bg-primary-foreground is the page colour in the dark theme,
+          // which made inline code invisible as a chip.
           className={cn(
-            "bg-primary-foreground rounded-sm px-1 font-mono text-sm",
+            "bg-muted rounded-[0.35rem] px-1.5 py-0.5 font-mono text-[0.86em]",
             className
           )}
           {...props}
@@ -74,8 +76,11 @@ const MemoizedMarkdownBlock = memo(
       </ReactMarkdown>
     )
   },
+  // Edited: also compare the renderers, so a block re-renders when what it
+  // links to changes -- the original compared the text alone.
   function propsAreEqual(prevProps, nextProps) {
-    return prevProps.content === nextProps.content
+    return prevProps.content === nextProps.content &&
+      prevProps.components === nextProps.components
   }
 )
 
@@ -90,6 +95,12 @@ function MarkdownComponent({
   const generatedId = useId()
   const blockId = id ?? generatedId
   const blocks = useMemo(() => parseMarkdownIntoBlocks(children), [children])
+  // Edited: merge overrides into the defaults. Passing `components` used to
+  // replace them, so adding a link renderer silently dropped code highlighting.
+  const merged = useMemo(
+    () => (components === INITIAL_COMPONENTS ? components
+      : { ...INITIAL_COMPONENTS, ...components }),
+    [components])
 
   return (
     <div className={className}>
@@ -97,7 +108,7 @@ function MarkdownComponent({
         <MemoizedMarkdownBlock
           key={`${blockId}-block-${index}`}
           content={block}
-          components={components}
+          components={merged}
         />
       ))}
     </div>

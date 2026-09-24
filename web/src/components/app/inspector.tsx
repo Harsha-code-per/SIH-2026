@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { ContainmentBadge, level } from "./containment"
+import { PassageText } from "./answer"
 import { useContainment } from "@/hooks/use-containment"
 import { api } from "@/lib/api"
 import { describe } from "@/lib/steps"
@@ -26,11 +27,13 @@ export interface InspectorSubject {
   live: boolean
 }
 
-export function Inspector({ subject, tab, setTab, onClose }: {
+export function Inspector({ subject, tab, setTab, onClose, highlight }: {
   subject: InspectorSubject | null
   tab: InspectorTab
   setTab: (t: InspectorTab) => void
   onClose: () => void
+  /** a passage id to scroll to and mark, when a citation pill was clicked */
+  highlight?: string | null
 }) {
   return (
     <aside aria-label="Inspector"
@@ -67,7 +70,7 @@ export function Inspector({ subject, tab, setTab, onClose }: {
               {subject ? <ActivityTab subject={subject} /> : <Empty text="Run a task to see each step it takes." />}
             </TabsContent>
             <TabsContent value="sources" className="mt-0">
-              {subject?.evidence.length ? <SourcesTab passages={subject.evidence} />
+              {subject?.evidence.length ? <SourcesTab passages={subject.evidence} highlight={highlight} />
                 : <Empty text="Passages retrieved from the knowledge base appear here, with how well each matched." />}
             </TabsContent>
             <TabsContent value="files" className="mt-0">
@@ -178,7 +181,13 @@ function safeCode(raw: string): string {
   try { return JSON.parse(raw).code ?? raw } catch { return raw }
 }
 
-function SourcesTab({ passages }: { passages: Passage[] }) {
+function SourcesTab({ passages, highlight }: { passages: Passage[]; highlight?: string | null }) {
+  useEffect(() => {
+    if (!highlight) return
+    const el = document.getElementById(`source-${highlight}`)
+    el?.scrollIntoView({ block: "center", behavior: "smooth" })
+    el?.focus({ preventScroll: true })
+  }, [highlight])
   const byDoc = new Map<string, Passage[]>()
   for (const p of [...passages].sort((a, b) => b.score - a.score)) {
     const doc = p.id.split("#")[0]
@@ -195,7 +204,9 @@ function SourcesTab({ passages }: { passages: Passage[] }) {
           </div>
           <div className="space-y-2">
             {items.map((p) => (
-              <article key={p.id} className="rounded-xl border bg-card p-3">
+              <article key={p.id} id={`source-${p.id}`} tabIndex={-1}
+                       className={cn("rounded-xl border bg-card p-3 outline-none transition-shadow",
+                                     p.id === highlight && "border-brand/60 ring-2 ring-brand/25")}>
                 <div className="mb-1 flex items-baseline gap-2">
                   <span className="font-mono text-xs font-semibold text-brand">#{p.id.split("#")[1]}</span>
                   <span className="min-w-0 truncate text-xs text-muted-foreground">{p.cite.split(" · ").slice(1).join(" · ")}</span>
@@ -203,9 +214,8 @@ function SourcesTab({ passages }: { passages: Passage[] }) {
                     {p.score.toFixed(2)}
                   </span>
                 </div>
-                <p className="line-clamp-4 break-words text-[13px] leading-relaxed text-foreground/85 [overflow-wrap:anywhere]">
-                  {p.text}
-                </p>
+                <PassageText text={p.text}
+                             className={p.id === highlight ? "" : "line-clamp-5"} />
               </article>
             ))}
           </div>

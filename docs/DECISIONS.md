@@ -411,6 +411,39 @@ passage pushed every card in the Inspector past the panel's edge. The
 Inspector forces the wrapper to block.
 **Where:** `web/src/components/app/inspector.tsx`.
 
+### D-55 · Nothing under `/api` may be cached
+**Why:** API responses carried no `Cache-Control`. After downloading an
+approval note, a fetch of the same URL *with no token* came back 200 — the
+browser answered from its cache, not the server, which correctly returned 401.
+On a workstation shared between shifts that hands one engineer's documents to
+the next person at the keyboard. A middleware sets `no-store` on every `/api`
+response, whatever its status, so no endpoint can be missed; the interface's
+own hashed assets stay cacheable.
+**Where:** `app/main.py::no_store_api`, `tests/test_http.py`.
+
+### D-56 · Citation pills are buttons, not only hover targets
+**Why:** Radix hover cards open on pointer hover only, so a keyboard user could
+never read a cited clause. Each pill is a button that pins the passage in the
+Inspector's Sources tab; the hover card is a preview on top. Pills label a
+numbered clause (`§4.2`) and fall back to the document name for a named
+heading, because `§EQUIPMENT` reads as noise.
+**Where:** `web/src/components/app/answer.tsx`.
+
+### D-57 · Retrieved passages are un-wrapped before rendering
+**Why:** the SOP sources are hard-wrapped at ~80 columns and the markdown
+renderer breaks at every newline, so clauses read "additionally / require".
+Prose lines are joined; tables, lists, headings and `Label: value` lines (the
+equipment register's format) are left alone — joining those made one run-on
+line.
+**Where:** `web/src/components/app/answer.tsx::unwrap`.
+
+### D-58 · prompt-kit's Markdown must merge renderers, not replace them
+**Why:** passing `components` replaced prompt-kit's defaults wholesale, so
+adding a citation renderer silently dropped code highlighting; and its `memo`
+compared only the text, so new renderers never took effect. Both edited in the
+vendored copy, which is why it is vendored.
+**Where:** `web/src/components/prompt-kit/markdown.tsx`.
+
 ---
 
 ## Environment facts worth knowing

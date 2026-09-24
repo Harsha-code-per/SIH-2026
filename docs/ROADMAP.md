@@ -67,7 +67,10 @@ shadcn/ui and prompt-kit on Vite. Findings from studying the three live are in
   with markdown answers and a one-line activity summary; composer with
   attachments, drag and drop, and a live routing preview; the Inspector with
   Activity, Sources, Files and Shield; a working Settings dialog
-- [ ] **D. AI rendering** — markdown, reasoning summary, citations, verification seal, file cards
+- [x] **D. AI rendering** — citations as inline pills that preview the clause
+  on hover and pin it in the Inspector on click; passages rendered as markdown;
+  a verification seal built only from checks the backend ran; the routing chip
+  with its reason; deliverables as file cards with an outline and Download
 - [ ] **E. Views** — Knowledge, Models, Audit, Users, Settings, ⌘K, slash commands
 - [ ] **F. Verify** — responsive, both themes, accessibility, side-by-side with references
 - [ ] **G. Streaming** — token and thinking streams, visible revision on repair

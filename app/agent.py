@@ -66,7 +66,8 @@ Rules you must follow:
 - Compute every number with the calculate or percent_change tool. Do not do
   arithmetic yourself.
 - When asked for a document deliverable, call the write tool. Do not paste the
-  document into chat and call it done.
+  document into chat and call it done. The interface shows the file with its
+  own Download button: name the file, but do not print its path or a link.
 - If the knowledge base does not support a claim, say so plainly rather than
   filling the gap.
 

@@ -1,6 +1,5 @@
 import { useState } from "react"
 import { AlertTriangle, Check, Copy, FileText, ListTree } from "lucide-react"
-import { Markdown } from "@/components/prompt-kit/markdown"
 import { Steps, StepsContent, StepsItem, StepsTrigger } from "@/components/prompt-kit/steps"
 import { TextShimmer } from "@/components/prompt-kit/text-shimmer"
 import { Button } from "@/components/ui/button"
@@ -9,6 +8,8 @@ import { currentActivity, describe, summarise } from "@/lib/steps"
 import type { Step, Turn } from "@/lib/types"
 import type { LiveTurn } from "@/hooks/use-thread"
 import { cn } from "@/lib/utils"
+import { AnswerBody, RouteChip, Seal } from "./answer"
+import { FileCard } from "./inspector"
 
 export function UserBubble({ text, attachment }: { text: string; attachment?: string | null }) {
   return (
@@ -69,25 +70,30 @@ export function Activity({ steps, onOpen, live = false }: {
   )
 }
 
-export function AssistantTurn({ turn, onInspect }: { turn: Turn; onInspect: () => void }) {
+export function AssistantTurn({ turn, onInspect, onCite }: {
+  turn: Turn
+  onInspect: () => void
+  onCite?: (id: string) => void
+}) {
   const [copied, setCopied] = useState(false)
-  const failed = turn.verdict && turn.verdict !== "ok"
   return (
     <div className="group/turn">
       <Activity steps={turn.steps} onOpen={onInspect} />
       {turn.answer ? (
-        <Markdown className="prose-answer">{turn.answer}</Markdown>
-      ) : (
+        <AnswerBody text={turn.answer} evidence={turn.evidence} onCite={onCite} />
+      ) : !turn.deliverables.length && (
         <p className="text-sm text-muted-foreground">No answer was produced.</p>
       )}
-      {failed && (
-        <div className="mt-3 flex items-start gap-2 rounded-lg border border-warn/30 bg-warn/10 px-3 py-2 text-[13px]">
-          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warn" />
-          <span>This answer did not pass verification (<span className="font-mono">{turn.verdict}</span>). Treat it with care.</span>
+      {turn.deliverables.length > 0 && (
+        <div className="mt-4 space-y-2">
+          {turn.deliverables.map((f) => <FileCard key={f.path} file={f} compact />)}
         </div>
       )}
-      <div className="mt-2 flex items-center gap-0.5 opacity-0 transition-opacity
-                      group-hover/turn:opacity-100 focus-within:opacity-100">
+      <Seal turn={turn} />
+      <div className="mt-2 flex items-center gap-1">
+        <RouteChip decision={turn.decision} />
+        <div className="flex items-center gap-0.5 opacity-0 transition-opacity
+                        group-hover/turn:opacity-100 focus-within:opacity-100">
         <Tooltip>
           <TooltipTrigger asChild>
             <Button variant="ghost" size="icon" className="size-7 text-muted-foreground"
@@ -110,6 +116,7 @@ export function AssistantTurn({ turn, onInspect }: { turn: Turn; onInspect: () =
           </TooltipTrigger>
           <TooltipContent>Inspect</TooltipContent>
         </Tooltip>
+        </div>
       </div>
     </div>
   )

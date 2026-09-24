@@ -46,6 +46,7 @@ export function ChatPage() {
   const [inspectorOpen, setInspectorOpen] = useState(() => pref("inspector:open", true))
   const [tab, setTab] = useState<InspectorTab>("activity")
   const [selected, setSelected] = useState<number | null>(null)
+  const [highlight, setHighlight] = useState<string | null>(null)
 
   const thread = useThread(id ?? null, {
     // A new conversation gets its address as soon as the server names it, so a
@@ -79,8 +80,11 @@ export function ChatPage() {
   }, [thread.live, thread.turns, selected])
 
   const inspect = (i: number) => {
-    setSelected(i); setInspectorOpen(true); setPref("inspector:open", true)
-    setPref("inspector:auto", true)
+    setSelected(i); setHighlight(null); setInspectorOpen(true)
+    setPref("inspector:open", true); setPref("inspector:auto", true)
+  }
+  const openSource = (i: number, id: string) => {
+    inspect(i); setTab("sources"); setHighlight(id)
   }
   const closeInspector = () => {
     setInspectorOpen(false); setPref("inspector:open", false); setPref("inspector:auto", false)
@@ -106,7 +110,8 @@ export function ChatPage() {
   }
 
   const inspector = (
-    <Inspector subject={subject} tab={tab} setTab={setTab} onClose={closeInspector} />
+    <Inspector subject={subject} tab={tab} setTab={setTab} onClose={closeInspector}
+               highlight={highlight} />
   )
 
   return (
@@ -165,7 +170,8 @@ export function ChatPage() {
                 {thread.turns.map((t, i) => (
                   <div key={i} className="space-y-5">
                     <UserBubble text={t.prompt} attachment={t.attachment} />
-                    <AssistantTurn turn={t} onInspect={() => inspect(i)} />
+                    <AssistantTurn turn={t} onInspect={() => inspect(i)}
+                                   onCite={(id) => openSource(i, id)} />
                   </div>
                 ))}
                 {thread.live && (
