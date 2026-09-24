@@ -1,15 +1,12 @@
 import { useState } from "react"
-import { AlertTriangle, Check, Copy, FileText, ListTree, RefreshCw } from "lucide-react"
-import { Steps, StepsContent, StepsItem, StepsTrigger } from "@/components/prompt-kit/steps"
-import { TextShimmer } from "@/components/prompt-kit/text-shimmer"
+import { AlertTriangle, BookOpen, Check, Copy, FileText, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { currentActivity, describe, summarise } from "@/lib/steps"
-import type { Step, Turn } from "@/lib/types"
+import type { Turn } from "@/lib/types"
 import type { LiveTurn } from "@/hooks/use-thread"
-import { cn } from "@/lib/utils"
 import { AnswerBody, FAILURE, RouteChip, Seal } from "./answer"
-import { FileCard } from "./inspector"
+import { FileCard, type InspectorTab } from "./inspector"
+import { Reasoning } from "./reasoning"
 
 export function UserBubble({ text, attachment }: { text: string; attachment?: string | null }) {
   return (
@@ -20,67 +17,24 @@ export function UserBubble({ text, attachment }: { text: string; attachment?: st
           {attachment.split("/").pop()}
         </div>
       )}
-      <div className="max-w-[85%] whitespace-pre-wrap break-words rounded-2xl rounded-br-md
-                      bg-secondary px-4 py-2.5 text-[15px] leading-relaxed">
+      <div className="max-w-[85%] whitespace-pre-wrap break-words rounded-2xl rounded-br-md border border-brand/15
+                      bg-gradient-to-br from-brand/14 to-brand-2/10 px-4 py-2.5 text-[15px] leading-relaxed">
         {text}
       </div>
     </div>
   )
 }
 
-/** Claude's pattern: one quiet line that says what was done, expanding into
- *  the steps. The Inspector holds the full detail. */
-export function Activity({ steps, onOpen, live = false, thinking = false }: {
-  steps: Step[]
-  onOpen?: () => void
-  live?: boolean
-  /** the model is reasoning right now; the reasoning itself is in the Inspector */
-  thinking?: boolean
-}) {
-  const visible = steps.filter((s) => s.kind === "tool" || s.kind === "route"
-    || s.kind === "verify" || s.kind === "escalate" || s.kind === "retry" || s.kind === "error")
-  if (!visible.length && !live) return null
-  return (
-    <Steps defaultOpen={false} className="mb-2">
-      <StepsTrigger leftIcon={<ListTree className="size-4" />}
-                    className="text-[13px] text-muted-foreground hover:text-foreground">
-        {live ? <TextShimmer>{thinking ? "Thinking…" : currentActivity(steps)}</TextShimmer> : summarise(steps)}
-      </StepsTrigger>
-      <StepsContent>
-        <div className="space-y-1.5">
-          {visible.map((s) => {
-            const { verb, arg } = describe(s)
-            return (
-              <StepsItem key={`${s.n}-${s.kind}`}
-                         className={cn("text-[13px]",
-                           s.kind === "error" && "text-bad",
-                           s.kind === "verify" && s.label === "checks passed" && "text-ok")}>
-                <span className="text-foreground/90">{verb}</span>
-                {arg && <span className="text-muted-foreground"> · {arg}</span>}
-              </StepsItem>
-            )
-          })}
-          {onOpen && (
-            <button onClick={onOpen}
-                    className="text-xs font-medium text-brand hover:underline">
-              Open in Inspector
-            </button>
-          )}
-        </div>
-      </StepsContent>
-    </Steps>
-  )
-}
-
-export function AssistantTurn({ turn, onInspect, onCite }: {
+export function AssistantTurn({ turn, onOpen, onCite }: {
   turn: Turn
-  onInspect: () => void
+  /** open the evidence panel on a tab, for this turn */
+  onOpen: (tab: InspectorTab) => void
   onCite?: (id: string) => void
 }) {
   const [copied, setCopied] = useState(false)
   return (
     <div className="group/turn">
-      <Activity steps={turn.steps} onOpen={onInspect} />
+      <Reasoning steps={turn.steps} decision={turn.decision} thinking={turn.thinking} />
       {turn.answer ? (
         <AnswerBody text={turn.answer} evidence={turn.evidence} onCite={onCite} />
       ) : !turn.deliverables.length && (
@@ -92,32 +46,31 @@ export function AssistantTurn({ turn, onInspect, onCite }: {
         </div>
       )}
       <Seal turn={turn} />
-      <div className="mt-2 flex items-center gap-1">
+      <div className="mt-2 flex flex-wrap items-center gap-1">
         <RouteChip decision={turn.decision} />
+        {turn.evidence.length > 0 && (
+          // ChatGPT's pattern: the sources sit one click away, with a count.
+          <button onClick={() => onOpen("sources")}
+                  className="inline-flex h-6 items-center gap-1 rounded-md px-1.5 text-[11px] font-medium
+                             text-muted-foreground transition-colors hover:bg-brand/10 hover:text-brand">
+            <BookOpen className="size-3" /> {turn.evidence.length} sources
+          </button>
+        )}
         <div className="flex items-center gap-0.5 opacity-0 transition-opacity
                         group-hover/turn:opacity-100 focus-within:opacity-100">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button variant="ghost" size="icon" className="size-7 text-muted-foreground"
-                    aria-label="Copy answer"
-                    onClick={async () => {
-                      await navigator.clipboard.writeText(turn.answer)
-                      setCopied(true); setTimeout(() => setCopied(false), 1500)
-                    }}>
-              {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>{copied ? "Copied" : "Copy"}</TooltipContent>
-        </Tooltip>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button variant="ghost" size="icon" className="size-7 text-muted-foreground"
-                    aria-label="Inspect this answer" onClick={onInspect}>
-              <ListTree className="size-3.5" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Inspect</TooltipContent>
-        </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" className="size-7 text-muted-foreground"
+                      aria-label="Copy answer"
+                      onClick={async () => {
+                        await navigator.clipboard.writeText(turn.answer)
+                        setCopied(true); setTimeout(() => setCopied(false), 1500)
+                      }}>
+                {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{copied ? "Copied" : "Copy"}</TooltipContent>
+          </Tooltip>
         </div>
       </div>
     </div>
@@ -125,21 +78,12 @@ export function AssistantTurn({ turn, onInspect, onCite }: {
 }
 
 export function LiveAssistant({ live }: { live: LiveTurn }) {
-  if (live.status === "error") {
-    return (
-      <div className="space-y-2">
-        <Activity steps={live.steps} />
-        <div className="flex items-start gap-2 rounded-lg border border-bad/30 bg-bad/10 px-3 py-2 text-[13px]">
-          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-bad" />
-          <span>{live.error}</span>
-        </div>
-      </div>
-    )
-  }
+  const running = live.status === "running"
   return (
     <div>
-      <Activity steps={live.steps} live thinking={live.thinkingNow} />
-      {live.revision && (
+      <Reasoning steps={live.steps} thinking={live.thinking} live={running}
+                 thinkingNow={live.thinkingNow} />
+      {live.revision && running && (
         // The others quietly swap a bad answer for a better one. Here the
         // withdrawal is shown, because it is the proof the checks are real.
         <div className="mb-2 flex items-start gap-2 text-[13px] text-warn">
@@ -148,8 +92,14 @@ export function LiveAssistant({ live }: { live: LiveTurn }) {
         </div>
       )}
       {live.text && (
-        <div className="streaming">
+        <div className={running ? "streaming" : undefined}>
           <AnswerBody text={live.text} evidence={[]} pending />
+        </div>
+      )}
+      {live.status === "error" && (
+        <div className="flex items-start gap-2 rounded-lg border border-bad/30 bg-bad/10 px-3 py-2 text-[13px]">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-bad" />
+          <span>{live.error}</span>
         </div>
       )}
     </div>

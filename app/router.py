@@ -178,8 +178,22 @@ class Router:
         return True
 
     def route(self, prompt: str, *, has_image: bool = False,
-              image_kind: str | None = None) -> Decision:
+              image_kind: str | None = None, choose: str | None = None) -> Decision:
         f = extract_features(prompt, has_image=has_image, image_kind=image_kind)
+        if choose:
+            # A person picked the model. Routing is the default, not a cage:
+            # the choice is honoured and recorded as manual, and the answer is
+            # still verified -- and still escalated if it fails.
+            m = next((m for m in self.models if m["id"] == choose), None)
+            if m is None:
+                raise ValueError(f"unknown model {choose!r}")
+            return Decision(
+                tier=m["tier"], model_id=m["id"], model_name=self.resolve(m),
+                tool=None, max_tokens=m.get("max_tokens", 2048), rule="manual",
+                why="Chosen by the user instead of automatic routing.",
+                features=f.as_dict(), mode=self.mode,
+                escalates_to=self.escalation.get(m["tier"]),
+            )
         for rule in self.rules:
             if self._matches(rule.get("if") or {}, f):
                 then = rule["then"]

@@ -100,3 +100,20 @@ def test_genuinely_cheap_work_stays_cheap():
     r = Router()
     for q in ["Summarize this memo", "Hello, who are you?", "Thanks, that helps"]:
         assert r.route(q).tier == "L1", f"{q!r} routed to {r.route(q).tier}"
+
+
+def test_a_manual_choice_overrides_routing_and_says_so():
+    """Arithmetic would go to L0; a person who picks the reasoning model gets
+    it, and the decision records that it was their choice, not a rule."""
+    r = Router()
+    d = r.route("What is 18 * 47?", choose="reason")
+    assert (d.tier, d.model_id, d.rule) == ("L2", "reason", "manual")
+    assert d.escalates_to == r.escalation.get("L2")
+
+
+def test_an_unknown_manual_choice_is_refused():
+    try:
+        Router().route("hello", choose="gpt-4o")
+    except ValueError:
+        return
+    raise AssertionError("a model outside the registry was accepted")

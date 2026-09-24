@@ -501,6 +501,30 @@ fails verification is withdrawn with the failed check as the reason before an
 escalation or repair runs.
 **Where:** `app/agent.py::Agent._converse`, `app/agent.py::Agent._reset`.
 
+### D-66 · Reasoning is shown once, inline; the side panel is evidence
+**Why:** the redesign showed the agent's work twice — a summary line in the
+conversation and a full timeline in a right-hand Inspector that opened on
+every run — and the panel had its own close button beside the header toggle,
+so two identical icons sat side by side. Reasoning now expands inline, with
+the routing, each tool call joined to its result, the code and its output,
+and the model's reasoning (saved with the turn). The right panel keeps only
+what is evidence — sources, files, containment — has one toggle, and opens on
+request: a citation, a file, or a turn's *N sources* button.
+**Where:** `web/src/components/app/reasoning.tsx`, `web/src/pages/chat.tsx`,
+`app/sessions.py::Turn.thinking`.
+
+### D-67 · Automatic routing with a manual override beside it
+**Why:** routing picks the tier, but a person may know better for a given
+request, and every reference product lets them choose. The composer's model
+menu lists the registry, so a model added to `models.yaml` appears without a
+code change. The server accepts only registry ids — the value arrives as free
+text — and records the choice as rule `manual`. A picked model is still
+verified and still escalated on failure: choosing a model does not opt out
+of the checks.
+**Where:** `app/router.py::Router.route` (`choose`), `app/main.py::run`,
+`web/src/components/app/composer.tsx`, `tests/test_router.py`,
+`tests/test_http.py`.
+
 ---
 
 ## Environment facts worth knowing

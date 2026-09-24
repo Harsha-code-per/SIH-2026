@@ -247,6 +247,7 @@ async def egress_stream(user: User = Depends(current_user)):
 @app.post("/api/run")
 async def run(prompt: str = Form(...), has_image: bool = Form(False),
               attachment: str = Form(""), conversation: str = Form(""),
+              model: str = Form(""),
               user: User = Depends(needs("run"))):
     """Execute a task, streaming every step as it happens.
 
@@ -254,6 +255,9 @@ async def run(prompt: str = Form(...), has_image: bool = Form(False),
     note needs to see which SOP clause was retrieved and what was computed, not
     just the conclusion.
     """
+    # Empty means automatic routing; anything else must be a registry id.
+    if model and model not in {m["id"] for m in router.models}:
+        raise HTTPException(status_code=400, detail=f"unknown model {model!r}")
     q: asyncio.Queue = asyncio.Queue()
     # An id belonging to someone else resolves to a fresh conversation rather
     # than an error, so the endpoint never confirms that the id exists.
@@ -262,6 +266,7 @@ async def run(prompt: str = Form(...), has_image: bool = Form(False),
     carried = attachment or conv.carried_attachment() or ""
     audit.record("task.received", user=user.username, prompt=prompt[:500],
                  mode=MODE, attachment=carried or None, conversation=conv.id,
+                 model=model or "auto",
                  turn=len(conv.turns) + 1)
 
     # The attachment is passed through separately rather than pasted into the
@@ -281,20 +286,23 @@ async def run(prompt: str = Form(...), has_image: bool = Form(False),
         async def drive():
             try:
                 return await agent.run(prompt, attachment=carried or None,
-                                       history=conv.history())
+                                       history=conv.history(), model=model or None)
             finally:
                 q.put_nowait(None)
 
         task = asyncio.create_task(drive())
         steps: list[dict] = []
+        thinking: list[str] = []
         yield f"data: {json.dumps({'type': 'conversation', 'id': conv.id})}\n\n"
         while True:
             item = await q.get()
             if item is None:
                 break
             if isinstance(item, dict):
-                # Streamed text. Not audited or saved: the final answer is,
-                # and the tokens are only its arrival.
+                # Streamed text. Not audited: the final answer is, and the
+                # tokens are only its arrival. Reasoning is kept with the turn.
+                if item["type"] == "thinking":
+                    thinking.append(item["text"])
                 yield f"data: {json.dumps(item)}\n\n"
                 continue
             steps.append(item.as_dict())
@@ -312,12 +320,13 @@ async def run(prompt: str = Form(...), has_image: bool = Form(False),
             evidence=final.get("evidence", []),
             deliverables=final.get("deliverables", []),
             attachment=carried or None, decision=final.get("decision", {}),
-            steps=steps, verdict=final.get("verdict")))
+            steps=steps, verdict=final.get("verdict"),
+            thinking="".join(thinking)[-20000:]))
         audit.record("task.completed", user=user.username,
                      verdict=final.get("verdict"),
                      model=final["decision"].get("model_name"), conversation=conv.id,
                      deliverables=[d["path"] for d in final["deliverables"]])
-        yield f"data: {json.dumps({'type': 'final', 'conversation': conv.id, 'title': conv_after.title, **final}, default=str)}\n\n"
+        yield f"data: {json.dumps({'type': 'final', 'conversation': conv.id, 'title': conv_after.title, 'thinking': ''.join(thinking)[-20000:], **final}, default=str)}\n\n"
 
     return StreamingResponse(gen(), media_type="text/event-stream",
                              headers={"Cache-Control": "no-cache",

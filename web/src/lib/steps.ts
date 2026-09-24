@@ -90,5 +90,11 @@ function resultArg(d: Record<string, unknown>): string | undefined {
   if (typeof d.steps === "string") return d.steps
   if (typeof d.stdout === "string" && d.stdout.trim()) return d.stdout.trim().split("\n")[0]
   if (typeof d.error === "string") return d.error
+  // Tool results other than search and sandbox arrive as a printed Python
+  // dict; the calculator's worked line is the part a reader wants.
+  if (typeof d.output === "string") {
+    const worked = d.output.match(/'steps': '([^']*)'/)?.[1]
+    return worked ?? d.output.match(/'result': ([^,}]+)/)?.[1]
+  }
   return undefined
 }

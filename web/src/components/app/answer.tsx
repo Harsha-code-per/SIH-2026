@@ -216,6 +216,7 @@ export function RouteChip({ decision }: { decision: Decision | Record<string, ne
               className={cn("inline-flex h-6 cursor-default items-center gap-1 rounded-md px-1.5 font-mono text-[11px] font-semibold", t.tone)}>
           {decision.tier}
           <span className="font-sans font-medium">{t.name}</span>
+          {decision.rule === "manual" && <span className="font-sans font-normal opacity-75">· your pick</span>}
         </span>
       </HoverCardTrigger>
       <HoverCardContent side="top" align="start" className="w-72 text-sm">

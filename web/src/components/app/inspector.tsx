@@ -1,8 +1,6 @@
 import { useEffect, useState } from "react"
 import {
-  AlertTriangle, ArrowRightLeft, BookOpen, Calculator, CheckCircle2, Code2, Download,
-  FileSpreadsheet, FileText, Loader2, PanelRightClose, RefreshCw, Route, ScanLine,
-  Search, ShieldCheck, Zap,
+  BookOpen, Download, FileSpreadsheet, FileText, Loader2, ShieldCheck,
 } from "lucide-react"
 import { toast } from "sonner"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -12,12 +10,11 @@ import { ContainmentBadge, level } from "./containment"
 import { PassageText } from "./answer"
 import { useContainment } from "@/hooks/use-containment"
 import { api } from "@/lib/api"
-import { describe } from "@/lib/steps"
-import { TIER } from "@/lib/tiers"
 import type { Decision, Deliverable, Passage, Step } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
-export type InspectorTab = "activity" | "sources" | "files" | "shield"
+// Reasoning is inline in the conversation (D-66); this panel is the evidence.
+export type InspectorTab = "sources" | "files" | "shield"
 
 export interface InspectorSubject {
   steps: Step[]
@@ -29,22 +26,21 @@ export interface InspectorSubject {
   thinking?: string
 }
 
-export function Inspector({ subject, tab, setTab, onClose, highlight }: {
+export function Inspector({ subject, tab, setTab, highlight }: {
   subject: InspectorSubject | null
   tab: InspectorTab
   setTab: (t: InspectorTab) => void
-  onClose: () => void
   /** a passage id to scroll to and mark, when a citation pill was clicked */
   highlight?: string | null
 }) {
   return (
-    <aside aria-label="Inspector"
+    <aside aria-label="Sources and files"
            className="flex h-full w-full flex-col border-l bg-sidebar">
       <Tabs value={tab} onValueChange={(v) => setTab(v as InspectorTab)}
             className="flex h-full min-h-0 flex-col gap-0">
         <div className="flex h-12 shrink-0 items-center gap-2 border-b px-3">
           <TabsList className="h-8 bg-transparent p-0">
-            {(["activity", "sources", "files", "shield"] as InspectorTab[]).map((t) => (
+            {(["sources", "files", "shield"] as InspectorTab[]).map((t) => (
               <TabsTrigger key={t} value={t}
                 className="h-8 rounded-md px-2.5 text-[13px] capitalize data-[state=active]:bg-sidebar-accent data-[state=active]:shadow-none">
                 {t}
@@ -57,10 +53,6 @@ export function Inspector({ subject, tab, setTab, onClose, highlight }: {
               </TabsTrigger>
             ))}
           </TabsList>
-          <Button variant="ghost" size="icon" className="ml-auto size-8 text-muted-foreground"
-                  onClick={onClose} aria-label="Close Inspector">
-            <PanelRightClose className="size-4" />
-          </Button>
         </div>
 
         {/* Radix wraps the viewport content in display:table, which grows to
@@ -68,9 +60,6 @@ export function Inspector({ subject, tab, setTab, onClose, highlight }: {
             passage pushed every card off the panel's edge. Forced to block. */}
         <ScrollArea className="min-h-0 flex-1 [&_[data-radix-scroll-area-viewport]>div]:!block">
           <div className="p-4">
-            <TabsContent value="activity" className="mt-0">
-              {subject ? <ActivityTab subject={subject} /> : <Empty text="Run a task to see each step it takes." />}
-            </TabsContent>
             <TabsContent value="sources" className="mt-0">
               {subject?.evidence.length ? <SourcesTab passages={subject.evidence} highlight={highlight} />
                 : <Empty text="Passages retrieved from the knowledge base appear here, with how well each matched." />}
@@ -91,107 +80,6 @@ export function Inspector({ subject, tab, setTab, onClose, highlight }: {
 
 function Empty({ text }: { text: string }) {
   return <p className="py-10 text-center text-sm text-muted-foreground">{text}</p>
-}
-
-const ICON: Record<string, typeof Search> = {
-  kb_search: Search, read_document: BookOpen, parse_page: ScanLine,
-  describe_image: ScanLine, calculate: Calculator, percent_change: Calculator,
-  run_python: Code2, write_docx: FileText, write_xlsx: FileSpreadsheet,
-}
-
-function ActivityTab({ subject }: { subject: InspectorSubject }) {
-  const d = subject.decision && "tier" in subject.decision ? subject.decision as Decision : null
-  const route = d ?? (subject.steps.find((s) => s.kind === "route" && s.detail.tier)?.detail as unknown as Decision | undefined)
-  const steps = subject.steps.filter((s) => s.kind !== "result" || s.detail.error)
-
-  return (
-    <div className="space-y-5">
-      {route && (
-        <section className="rounded-xl border bg-card p-3.5">
-          <div className="mb-2 flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            <Route className="size-3.5" /> Routing
-          </div>
-          <div className="flex items-center gap-2">
-            <span className={cn("rounded-md px-1.5 py-0.5 font-mono text-xs font-semibold",
-                                TIER[route.tier]?.tone)}>{route.tier}</span>
-            <span className="font-medium">{TIER[route.tier]?.name}</span>
-          </div>
-          <p className="mt-1.5 text-[13px] text-muted-foreground">{route.why}</p>
-          <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
-            <dt className="text-muted-foreground">Model</dt>
-            <dd className="truncate font-mono">{route.model_name ?? `tool: ${route.tool}`}</dd>
-            <dt className="text-muted-foreground">Rule</dt><dd className="font-mono">{route.rule}</dd>
-            <dt className="text-muted-foreground">Task</dt><dd>{route.features?.task}</dd>
-            <dt className="text-muted-foreground">Escalates to</dt>
-            <dd>{route.escalates_to ?? "— top tier"}</dd>
-          </dl>
-        </section>
-      )}
-
-      <section>
-        <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          Timeline
-        </div>
-        <ol className="relative space-y-0.5 before:absolute before:bottom-2 before:left-[11px] before:top-2 before:w-px before:bg-border">
-          {steps.map((s) => {
-            const { verb, arg } = describe(s)
-            const Icon = s.kind === "tool" ? (ICON[s.label] ?? Zap)
-              : s.kind === "verify" ? (s.label === "checks passed" ? CheckCircle2 : AlertTriangle)
-              : s.kind === "escalate" || s.kind === "retry" ? RefreshCw
-              : s.kind === "route" ? ArrowRightLeft
-              : s.kind === "error" ? AlertTriangle : CheckCircle2
-            const tone = s.kind === "error" ? "text-bad"
-              : s.kind === "verify" ? (s.label === "checks passed" ? "text-ok" : "text-warn")
-              : s.kind === "escalate" || s.kind === "retry" ? "text-warn" : "text-muted-foreground"
-            return (
-              <li key={`${s.n}-${s.kind}`} className="relative flex gap-3 py-1.5">
-                <span className={cn("relative z-10 grid size-6 shrink-0 place-items-center rounded-full border bg-sidebar", tone)}>
-                  <Icon className="size-3.5" />
-                </span>
-                <div className="min-w-0 pt-0.5 text-[13px]">
-                  <div className="font-medium">{verb}</div>
-                  {arg && <div className="break-words text-muted-foreground">{arg}</div>}
-                  {s.label === "run_python" && typeof s.detail.arguments === "string" && (
-                    <pre className="mt-1.5 max-h-40 overflow-auto rounded-md bg-muted p-2 font-mono text-[11px]">
-                      {safeCode(s.detail.arguments)}
-                    </pre>
-                  )}
-                  {typeof s.detail.stdout === "string" && s.detail.stdout.trim() && (
-                    <pre className="mt-1.5 max-h-40 overflow-auto rounded-md bg-muted p-2 font-mono text-[11px]">
-                      {s.detail.stdout}
-                    </pre>
-                  )}
-                </div>
-              </li>
-            )
-          })}
-          {subject.live && (
-            <li className="relative flex gap-3 py-1.5">
-              <span className="relative z-10 grid size-6 shrink-0 place-items-center rounded-full border bg-sidebar text-brand">
-                <Loader2 className="size-3.5 animate-spin" />
-              </span>
-              <div className="min-w-0 flex-1 pt-0.5 text-[13px]">
-                <div className="text-muted-foreground">{subject.thinking ? "Thinking" : "Working…"}</div>
-                {subject.thinking && (
-                  // column-reverse keeps the newest reasoning in view without
-                  // scrolling code; only the tail matters while it arrives.
-                  <div className="mt-1.5 flex max-h-48 flex-col-reverse overflow-auto rounded-md bg-muted/60 p-2">
-                    <p className="whitespace-pre-wrap text-xs leading-relaxed text-muted-foreground">
-                      {subject.thinking.slice(-2000)}
-                    </p>
-                  </div>
-                )}
-              </div>
-            </li>
-          )}
-        </ol>
-      </section>
-    </div>
-  )
-}
-
-function safeCode(raw: string): string {
-  try { return JSON.parse(raw).code ?? raw } catch { return raw }
 }
 
 function SourcesTab({ passages, highlight }: { passages: Passage[]; highlight?: string | null }) {

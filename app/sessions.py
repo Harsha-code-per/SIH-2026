@@ -46,6 +46,9 @@ class Turn:
     steps: list[dict] = field(default_factory=list)
     verdict: str | None = None
     ts: float = field(default_factory=time.time)
+    # The model's own reasoning, shown inline under the answer. Capped: it is
+    # context for a reader, and a long run can think for pages.
+    thinking: str = ""
 
 
 @dataclass

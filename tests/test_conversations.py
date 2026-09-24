@@ -138,3 +138,22 @@ def test_the_store_file_is_private():
     c = s.create("arun")
     s.add_turn("arun", c.id, Turn(prompt="x", answer="y"))
     assert oct((s.root / "arun.json").stat().st_mode & 0o777) == "0o600"
+
+
+def test_reasoning_survives_a_restart_and_old_files_still_load():
+    """Reasoning is shown inline under past answers, so it is stored with the
+    turn; files written before the field existed must still load."""
+    import json
+    root = Path(tempfile.mkdtemp())
+    a = Conversations(root=root)
+    c = a.create("admin")
+    a.add_turn("admin", c.id, Turn(prompt="p", answer="a", thinking="because"))
+    assert Conversations(root=root).get("admin", c.id).turns[0].thinking == "because"
+
+    f = next(root.glob("*.json"))
+    data = json.loads(f.read_text())
+    for conv in (data.values() if isinstance(data, dict) else data):
+        for t in (conv["turns"] if isinstance(conv, dict) else []):
+            t.pop("thinking", None)
+    f.write_text(json.dumps(data))
+    assert Conversations(root=root).get("admin", c.id).turns[0].thinking == ""

@@ -60,6 +60,8 @@ export interface Turn {
   steps: Step[]
   verdict: Verdict | null
   ts: number
+  /** the model's own reasoning; absent on turns saved before it was kept */
+  thinking?: string
 }
 
 export interface ConversationSummary {
@@ -119,7 +121,7 @@ export type RunEvent =
   | ({ type: "step" } & Step)
   | ({ type: "final"; conversation: string; title: string; answer: string;
        decision: Decision; evidence: Passage[]; deliverables: Deliverable[];
-       verdict: Verdict; steps: Step[] })
+       verdict: Verdict; steps: Step[]; thinking: string })
   | { type: "error"; error: string }
   // Streaming (phase G): the answer as it arrives, the model's reasoning, and
   // a withdrawal when shown text is superseded -- with the failed check as the

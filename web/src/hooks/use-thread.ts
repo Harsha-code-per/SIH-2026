@@ -62,7 +62,8 @@ export function useThread(conversationId: string | null, callbacks: {
     return () => { cancelled = true }
   }, [conversationId])
 
-  const send = useCallback(async (prompt: string, attachment: string | null) => {
+  const send = useCallback(async (prompt: string, attachment: string | null,
+                                model: string | null = null) => {
     abort.current?.abort()
     const ctrl = new AbortController()
     abort.current = ctrl
@@ -73,6 +74,7 @@ export function useThread(conversationId: string | null, callbacks: {
     form.set("prompt", prompt)
     if (conversationId) form.set("conversation", conversationId)
     if (attachment) form.set("attachment", attachment)
+    if (model) form.set("model", model)
 
     try {
       for await (const e of api.stream<RunEvent>("/api/run",
@@ -95,7 +97,7 @@ export function useThread(conversationId: string | null, callbacks: {
           setTurns((t) => [...t, {
             prompt, attachment, answer: e.answer, evidence: e.evidence,
             deliverables: e.deliverables, decision: e.decision, steps: e.steps,
-            verdict: e.verdict, ts: Date.now() / 1000,
+            verdict: e.verdict, ts: Date.now() / 1000, thinking: e.thinking,
           }])
           setLive(null)
           cb.current.onTitle?.(e.conversation, e.title)

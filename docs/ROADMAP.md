@@ -84,8 +84,11 @@ shadcn/ui and prompt-kit on Vite. Findings from studying the three live are in
   is visibly withdrawn ("Revising — a citation does not match anything
   retrieved") before its replacement arrives
 
-**Transitional state:** Knowledge, Users, Models and Audit are placeholder
-pages until phase E; citations render as raw `[Doc.md#7]` until phase D.
+- [x] **H. Review changes** — after a first look: reasoning moved inline into
+  the conversation and the right panel reduced to on-demand evidence (one
+  toggle, not two); a manual model picker beside automatic routing; a vivid
+  indigo palette with a brand gradient, per-tier and per-tool colours, and an
+  aurora behind every page, replacing the muted warm grey
 
 ## Phase 3 — Demo completion `IN PROGRESS · due 30 Sept`
 

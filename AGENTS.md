@@ -90,7 +90,7 @@ real bug that is written up in `docs/DECISIONS.md`.
 5. **Ship the models, never fetch at runtime.** The embedding model is baked
    into the image at build time. Anything downloaded on first use fails in an
    air-gapped deployment, and fails quietly.
-6. **Every non-trivial behaviour has a runnable test.** 131 currently, via
+6. **Every non-trivial behaviour has a runnable test.** 135 currently, via
    `make test`. Tests are collected by `tests/run.py`, never by a `__main__`
    block — see decision D-41 in `docs/DECISIONS.md` for why.
 7. **The interface loads zero external resources.** No CDN, no Google Fonts —

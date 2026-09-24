@@ -11,6 +11,8 @@
     --font-sans: 'Geist Variable', ui-sans-serif, system-ui, sans-serif;
     --font-mono: 'Geist Mono Variable', ui-monospace, monospace;
     --color-brand: var(--brand);
+    --color-brand-2: var(--brand-2);
+    --color-brand-3: var(--brand-3);
     --color-brand-foreground: var(--brand-foreground);
     --color-ok: var(--ok);
     --color-warn: var(--warn);
@@ -56,84 +58,91 @@
 }
 
 :root {
-    --background: oklch(0.985 0.003 75);
-    --foreground: oklch(0.21 0.006 75);
-    --card: oklch(0.995 0.002 75);
-    --card-foreground: oklch(0.21 0.006 75);
-    --popover: oklch(0.995 0.002 75);
-    --popover-foreground: oklch(0.21 0.006 75);
-    --primary: oklch(0.23 0.006 75);
-    --primary-foreground: oklch(0.985 0.003 75);
-    --secondary: oklch(0.955 0.004 75);
-    --secondary-foreground: oklch(0.23 0.006 75);
-    --muted: oklch(0.955 0.004 75);
-    --muted-foreground: oklch(0.50 0.010 75);
-    --accent: oklch(0.945 0.005 75);
-    --accent-foreground: oklch(0.21 0.006 75);
-    --destructive: oklch(0.577 0.215 27);
-    --border: oklch(0.90 0.005 75);
-    --input: oklch(0.90 0.005 75);
-    --ring: oklch(0.62 0.12 228);
-    --chart-1: oklch(0.62 0.12 228);
-    --chart-2: oklch(0.60 0.13 160);
-    --chart-3: oklch(0.70 0.14 75);
-    --chart-4: oklch(0.58 0.18 20);
-    --chart-5: oklch(0.55 0.14 300);
+    /* Cool, lightly tinted neutrals; colour comes from the brand gradient and
+       the tier and tool hues, not from grey. */
+    --background: oklch(0.985 0.006 275);
+    --foreground: oklch(0.20 0.03 275);
+    --card: oklch(1 0 0);
+    --card-foreground: oklch(0.20 0.03 275);
+    --popover: oklch(1 0 0);
+    --popover-foreground: oklch(0.20 0.03 275);
+    --primary: oklch(0.55 0.22 268);
+    --primary-foreground: oklch(0.99 0 0);
+    --secondary: oklch(0.955 0.015 275);
+    --secondary-foreground: oklch(0.25 0.04 275);
+    --muted: oklch(0.955 0.012 275);
+    --muted-foreground: oklch(0.50 0.03 275);
+    --accent: oklch(0.94 0.025 275);
+    --accent-foreground: oklch(0.22 0.04 275);
+    --destructive: oklch(0.58 0.22 25);
+    --border: oklch(0.90 0.015 275);
+    --input: oklch(0.89 0.018 275);
+    --ring: oklch(0.60 0.20 268);
+    --chart-1: oklch(0.60 0.20 268);
+    --chart-2: oklch(0.65 0.17 165);
+    --chart-3: oklch(0.75 0.16 75);
+    --chart-4: oklch(0.62 0.22 20);
+    --chart-5: oklch(0.60 0.24 310);
     --radius: 0.75rem;
-    --sidebar: oklch(0.965 0.004 75);
-    --sidebar-foreground: oklch(0.25 0.006 75);
-    --sidebar-primary: oklch(0.23 0.006 75);
-    --sidebar-primary-foreground: oklch(0.985 0.003 75);
-    --sidebar-accent: oklch(0.925 0.006 75);
-    --sidebar-accent-foreground: oklch(0.21 0.006 75);
-    --sidebar-border: oklch(0.90 0.005 75);
-    --sidebar-ring: oklch(0.62 0.12 228);
+    --sidebar: oklch(0.965 0.012 275);
+    --sidebar-foreground: oklch(0.25 0.03 275);
+    --sidebar-primary: oklch(0.55 0.22 268);
+    --sidebar-primary-foreground: oklch(0.99 0 0);
+    --sidebar-accent: oklch(0.925 0.03 275);
+    --sidebar-accent-foreground: oklch(0.20 0.05 275);
+    --sidebar-border: oklch(0.90 0.015 275);
+    --sidebar-ring: oklch(0.60 0.20 268);
     /* Brand and status. Status colours carry meaning -- green only when the
        backend says contained or verified -- so they are never decorative. */
-    --brand: oklch(0.55 0.13 230);
+    --brand: oklch(0.56 0.22 268);
+    --brand-2: oklch(0.58 0.25 305);
+    --brand-3: oklch(0.70 0.15 215);
     --brand-foreground: oklch(0.99 0 0);
-    --ok: oklch(0.55 0.14 155);
-    --warn: oklch(0.62 0.14 70);
-    --bad: oklch(0.577 0.215 27);
+    --ok: oklch(0.58 0.17 155);
+    --warn: oklch(0.66 0.16 65);
+    --bad: oklch(0.58 0.22 25);
 }
 
 .dark {
-    --background: oklch(0.205 0.004 75);
-    --foreground: oklch(0.955 0.004 75);
-    --card: oklch(0.235 0.005 75);
-    --card-foreground: oklch(0.955 0.004 75);
-    --popover: oklch(0.245 0.005 75);
-    --popover-foreground: oklch(0.955 0.004 75);
-    --primary: oklch(0.945 0.004 75);
-    --primary-foreground: oklch(0.205 0.004 75);
-    --secondary: oklch(0.27 0.005 75);
-    --secondary-foreground: oklch(0.955 0.004 75);
-    --muted: oklch(0.265 0.005 75);
-    --muted-foreground: oklch(0.70 0.008 75);
-    --accent: oklch(0.28 0.005 75);
-    --accent-foreground: oklch(0.955 0.004 75);
-    --destructive: oklch(0.68 0.19 24);
-    --border: oklch(1 0 0 / 9%);
-    --input: oklch(1 0 0 / 13%);
-    --ring: oklch(0.72 0.11 225);
-    --chart-1: oklch(0.72 0.11 225);
-    --chart-2: oklch(0.74 0.14 160);
-    --chart-3: oklch(0.80 0.14 80);
-    --chart-4: oklch(0.70 0.18 22);
-    --chart-5: oklch(0.70 0.14 300);
-    --sidebar: oklch(0.18 0.004 75);
-    --sidebar-foreground: oklch(0.90 0.005 75);
-    --sidebar-primary: oklch(0.945 0.004 75);
-    --sidebar-primary-foreground: oklch(0.205 0.004 75);
-    --sidebar-accent: oklch(0.255 0.005 75);
-    --sidebar-accent-foreground: oklch(0.955 0.004 75);
-    --sidebar-border: oklch(1 0 0 / 7%);
-    --sidebar-ring: oklch(0.72 0.11 225);
-    --brand: oklch(0.72 0.11 225);
-    --brand-foreground: oklch(0.18 0.004 75);
-    --ok: oklch(0.74 0.15 155);
-    --warn: oklch(0.80 0.14 80);
-    --bad: oklch(0.70 0.18 24);
+    /* Deep indigo night rather than grey: depth without dimness. */
+    --background: oklch(0.165 0.022 278);
+    --foreground: oklch(0.965 0.008 275);
+    --card: oklch(0.205 0.028 278);
+    --card-foreground: oklch(0.965 0.008 275);
+    --popover: oklch(0.22 0.03 278);
+    --popover-foreground: oklch(0.965 0.008 275);
+    --primary: oklch(0.68 0.19 268);
+    --primary-foreground: oklch(0.99 0 0);
+    --secondary: oklch(0.25 0.035 278);
+    --secondary-foreground: oklch(0.965 0.008 275);
+    --muted: oklch(0.24 0.03 278);
+    --muted-foreground: oklch(0.74 0.03 275);
+    --accent: oklch(0.27 0.045 278);
+    --accent-foreground: oklch(0.975 0.008 275);
+    --destructive: oklch(0.70 0.20 22);
+    --border: oklch(0.85 0.05 275 / 11%);
+    --input: oklch(0.85 0.05 275 / 15%);
+    --ring: oklch(0.70 0.18 268);
+    --chart-1: oklch(0.70 0.18 268);
+    --chart-2: oklch(0.78 0.16 165);
+    --chart-3: oklch(0.84 0.15 80);
+    --chart-4: oklch(0.72 0.20 20);
+    --chart-5: oklch(0.72 0.21 310);
+    --sidebar: oklch(0.14 0.02 278);
+    --sidebar-foreground: oklch(0.92 0.01 275);
+    --sidebar-primary: oklch(0.68 0.19 268);
+    --sidebar-primary-foreground: oklch(0.99 0 0);
+    --sidebar-accent: oklch(0.23 0.045 278);
+    --sidebar-accent-foreground: oklch(0.975 0.008 275);
+    --sidebar-border: oklch(0.85 0.05 275 / 9%);
+    --sidebar-ring: oklch(0.70 0.18 268);
+    --brand: oklch(0.72 0.17 265);
+    --brand-2: oklch(0.72 0.20 310);
+    --brand-3: oklch(0.80 0.13 210);
+    --brand-foreground: oklch(0.99 0 0);
+    --ok: oklch(0.80 0.18 155);
+    --warn: oklch(0.84 0.15 78);
+    --bad: oklch(0.72 0.20 22);
 }
 
 @layer base {
@@ -164,11 +173,40 @@
   ::selection { background: color-mix(in oklab, var(--brand) 30%, transparent); }
 }
 
-/* Gemini-style ambient glow, used only behind the empty state. */
+/* Gemini-style glow behind the empty state: stronger, three hues. */
 .ambient {
   background:
-    radial-gradient(60% 50% at 50% 42%,
-      color-mix(in oklab, var(--brand) 16%, transparent), transparent 70%);
+    radial-gradient(40% 36% at 38% 38%, color-mix(in oklab, var(--brand) 26%, transparent), transparent 70%),
+    radial-gradient(38% 34% at 64% 44%, color-mix(in oklab, var(--brand-2) 22%, transparent), transparent 70%),
+    radial-gradient(50% 40% at 50% 62%, color-mix(in oklab, var(--brand-3) 14%, transparent), transparent 70%);
+}
+
+/* A faint aurora across the top of every page, so the workspace has depth
+   rather than a flat fill. Decorative, so it never takes pointer events. */
+.aurora::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 340px;
+  pointer-events: none;
+  background:
+    radial-gradient(45% 100% at 20% 0%, color-mix(in oklab, var(--brand) 13%, transparent), transparent 70%),
+    radial-gradient(40% 90% at 80% 0%, color-mix(in oklab, var(--brand-2) 11%, transparent), transparent 70%);
+}
+
+.bg-brand-gradient { background: linear-gradient(135deg, var(--brand) 0%, var(--brand-2) 100%); }
+.text-brand-gradient {
+  background: linear-gradient(100deg, var(--brand-3) 0%, var(--brand) 45%, var(--brand-2) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+/* A focus ring that glows in the brand colours, for the composer. */
+.glow-focus:focus-within {
+  border-color: color-mix(in oklab, var(--brand) 55%, transparent);
+  box-shadow:
+    0 0 0 4px color-mix(in oklab, var(--brand) 14%, transparent),
+    0 12px 40px -12px color-mix(in oklab, var(--brand-2) 45%, transparent);
 }
 
 @media (prefers-reduced-motion: reduce) {

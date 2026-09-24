@@ -1,21 +1,29 @@
 import { useEffect, useRef, useState } from "react"
-import { ArrowUp, FileText, Image as ImageIcon, Loader2, Paperclip, Sparkles, Square, X } from "lucide-react"
+import { ArrowUp, Check, ChevronDown, FileText, Image as ImageIcon, Loader2, Paperclip, Sparkles, Square, X } from "lucide-react"
 import { toast } from "sonner"
 import {
   PromptInput, PromptInputAction, PromptInputActions, PromptInputTextarea,
 } from "@/components/prompt-kit/prompt-input"
 import { Button } from "@/components/ui/button"
-import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card"
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
+  DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { useLoad } from "@/hooks/use-load"
 import { api } from "@/lib/api"
 import { TEMPLATES, takePrefill } from "@/lib/templates"
 import { IMAGE_LIKE, TIER } from "@/lib/tiers"
-import type { Decision } from "@/lib/types"
+import type { Decision, Status } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
 export interface Attachment { path: string; name: string; bytes: number }
 
-export function Composer({ onSend, onStop, running, attachment, setAttachment, autoFocus, className }: {
+export function Composer({ onSend, onStop, running, attachment, setAttachment, autoFocus, className,
+                           model, onModelChange }: {
   onSend: (prompt: string, attachment: Attachment | null) => void
+  /** a registry model id, or null for automatic routing */
+  model: string | null
+  onModelChange: (id: string | null) => void
   onStop: () => void
   running: boolean
   attachment: Attachment | null
@@ -72,6 +80,8 @@ export function Composer({ onSend, onStop, running, attachment, setAttachment, a
   // one routes by itself and shows where the request will go before it is sent.
   useEffect(() => {
     const prompt = value.trim()
+    // A chosen model needs no preview; the choice is the answer.
+    if (model) { setPreview(null); return }
     // A bare "/cmd" is the slash menu, not a request; "/" alone routes as
     // arithmetic and would preview "No model".
     if (!prompt || /^\/\w*$/.test(prompt)) { setPreview(null); return }
@@ -82,7 +92,7 @@ export function Composer({ onSend, onStop, running, attachment, setAttachment, a
       }).then(setPreview).catch(() => setPreview(null))
     }, 350)
     return () => clearTimeout(t)
-  }, [value, attachment])
+  }, [value, attachment, model])
 
   const send = () => {
     const prompt = value.trim()
@@ -114,6 +124,14 @@ export function Composer({ onSend, onStop, running, attachment, setAttachment, a
   })
 
   const tier = preview ? TIER[preview.tier] : null
+  const status = useLoad<Status>("/api/status")
+  const models = status.data?.models ?? []
+  const chosen = models.find((m) => m.id === model) ?? null
+  // A remembered model that has since left models.yaml would be refused by
+  // the server; fall back to Auto instead.
+  useEffect(() => {
+    if (model && status.data && !chosen) onModelChange(null)
+  }, [model, status.data, chosen, onModelChange])
 
   return (
     <div ref={boxRef} className={cn("relative w-full", className)}>
@@ -135,8 +153,8 @@ export function Composer({ onSend, onStop, running, attachment, setAttachment, a
       )}
       <PromptInput value={value} onValueChange={setValue} onSubmit={send}
                    isLoading={running} maxHeight={220}
-                   className="rounded-2xl border-border bg-card p-2 shadow-sm
-                              transition-shadow focus-within:shadow-md focus-within:border-ring/40">
+                   className="glow-focus rounded-2xl border-border bg-card/90 p-2 shadow-lg shadow-black/5
+                              backdrop-blur transition-[box-shadow,border-color]">
         {(attachment || uploading) && (
           <div className="mx-1 mb-1 mt-0.5 flex">
             <div className="flex max-w-full items-center gap-2 rounded-xl border bg-muted/60 py-1.5 pl-2.5 pr-1.5">
@@ -184,35 +202,56 @@ export function Composer({ onSend, onStop, running, attachment, setAttachment, a
           </div>
 
           <div className="flex items-center gap-2">
-            <HoverCard openDelay={150}>
-              <HoverCardTrigger asChild>
-                <span className={cn(
-                  "inline-flex h-7 cursor-default select-none items-center gap-1.5 rounded-full px-2.5 text-xs font-medium transition-colors",
-                  tier ? tier.tone : "bg-muted text-muted-foreground")}>
-                  <Sparkles className="size-3" />
-                  Auto{tier && <span className="opacity-80">· {tier.short}</span>}
-                </span>
-              </HoverCardTrigger>
-              <HoverCardContent side="top" align="end" className="w-72 text-sm">
-                {preview ? (
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium">{TIER[preview.tier].name}</span>
-                      <span className="font-mono text-xs text-muted-foreground">{preview.tier}</span>
-                    </div>
-                    <p className="text-muted-foreground">{preview.why}</p>
-                    <p className="truncate font-mono text-xs text-muted-foreground">
-                      {preview.model_name ?? `tool: ${preview.tool}`}
-                    </p>
-                  </div>
-                ) : (
-                  <p className="text-muted-foreground">
-                    The model is chosen for each request. Start typing to see where
-                    this one will go, and why.
-                  </p>
-                )}
-              </HoverCardContent>
-            </HoverCard>
+            {/* Automatic routing is the default; every model in the registry
+                can still be picked by hand. The list comes from models.yaml,
+                so a new model appears here without a code change. */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button type="button" aria-label="Choose model"
+                  className={cn(
+                    "inline-flex h-7 select-none items-center gap-1.5 rounded-full px-2.5 text-xs font-medium transition-colors",
+                    chosen ? TIER[chosen.tier].tone
+                      : tier ? tier.tone
+                      : "bg-brand/10 text-brand ring-1 ring-inset ring-brand/20 hover:bg-brand/15")}>
+                  {chosen ? <span className={cn("size-1.5 rounded-full", TIER[chosen.tier].dot)} />
+                    : <Sparkles className="size-3" />}
+                  {chosen ? TIER[chosen.tier].name : <>Auto{tier && <span className="opacity-80">· {tier.short}</span>}</>}
+                  <ChevronDown className="size-3 opacity-70" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent side="top" align="end" className="w-80 p-1.5">
+                <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Model</DropdownMenuLabel>
+                <DropdownMenuItem onSelect={() => onModelChange(null)} className="items-start gap-3 py-2">
+                  <span className="bg-brand-gradient mt-0.5 grid size-6 shrink-0 place-items-center rounded-md text-white">
+                    <Sparkles className="size-3.5" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-medium">Auto <span className="font-normal text-muted-foreground">· recommended</span></span>
+                    <span className="block text-xs text-muted-foreground">
+                      {preview ? <>This request → <span className="font-medium text-foreground">{TIER[preview.tier].name}</span>. {preview.why}</>
+                        : "Picks the right model for each request, and says why."}
+                    </span>
+                  </span>
+                  {!model && <Check className="mt-1 size-4 text-brand" />}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                {models.map((m) => (
+                  <DropdownMenuItem key={m.id} onSelect={() => onModelChange(m.id)} className="items-start gap-3 py-2">
+                    <span className={cn("mt-0.5 grid size-6 shrink-0 place-items-center rounded-md font-mono text-[10px] font-bold", TIER[m.tier].tone)}>
+                      {m.tier}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-medium">{TIER[m.tier].name}</span>
+                      <span className="block truncate font-mono text-[11px] text-muted-foreground">{m.name}</span>
+                    </span>
+                    {model === m.id && <Check className="mt-1 size-4 text-brand" />}
+                  </DropdownMenuItem>
+                ))}
+                <p className="px-2 pb-1 pt-2 text-[11px] leading-snug text-muted-foreground">
+                  A model you pick is still checked, and escalated if its answer fails.
+                </p>
+              </DropdownMenuContent>
+            </DropdownMenu>
 
             {running ? (
               <Button size="icon" variant="secondary" onClick={onStop}
@@ -221,7 +260,9 @@ export function Composer({ onSend, onStop, running, attachment, setAttachment, a
               </Button>
             ) : (
               <Button size="icon" onClick={send} disabled={!value.trim() || uploading}
-                      className="size-8 rounded-full" aria-label="Send">
+                      className="bg-brand-gradient size-8 rounded-full text-white shadow-md shadow-brand/30
+                                 transition-transform hover:scale-105 disabled:bg-none disabled:bg-muted
+                                 disabled:text-muted-foreground disabled:shadow-none" aria-label="Send">
                 <ArrowUp className="size-4" />
               </Button>
             )}

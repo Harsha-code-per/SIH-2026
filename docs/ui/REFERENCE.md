@@ -78,8 +78,11 @@ does:
 ## Decisions taken from this study
 
 - Adopt the shared shape wholesale; it is what users expect.
-- Reasoning **inline** as Claude does (a summary line that expands), **and** in
-  the right-hand Inspector for the live timeline and full detail.
+- Reasoning **inline** as Claude does: a summary line that expands to the
+  routing, every step, the code it ran and what came back, and the model's own
+  reasoning. It first also lived in a right-hand Inspector; showing it twice
+  was redundant, so the right panel now holds only the evidence — sources,
+  files, containment — and opens on request (D-66).
 - The right panel **pushes** content, as ChatGPT's Sources panel does.
 - Citations as **inline pills**, with a hover card showing the passage.
 - Deliverables as **file cards**.

@@ -57,7 +57,8 @@ export function SignIn() {
             <Input id="password" type="password" autoComplete="current-password" required
                    value={password} onChange={(e) => setPassword(e.target.value)} />
           </div>
-          <Button type="submit" className="w-full" disabled={busy}>
+          <Button type="submit" disabled={busy}
+                  className="bg-brand-gradient w-full text-white shadow-md shadow-brand/30 hover:opacity-95">
             {busy && <Loader2 className="animate-spin" />}
             {busy ? "Signing in…" : "Sign in"}
           </Button>

@@ -177,8 +177,14 @@ build output: gitignored, never edited by hand. The Docker image builds it in a
 Node stage (D-51). For development, `make web-dev` runs Vite with hot reload on
 :5173 and proxies `/api` to the running stack.
 
-The layout and its reasoning — history sidebar, conversation centre, Inspector
-on the right — are in `docs/ui/REFERENCE.md`.
+The layout and its reasoning — history sidebar, conversation centre with the
+agent's reasoning inline, an evidence panel (sources, files, containment) on
+the right that opens on request — are in `docs/ui/REFERENCE.md`.
+
+The composer routes automatically by default and offers every model in
+`models.yaml` as a manual choice; `/api/run` takes the chosen registry id as
+`model` and refuses any other value. A manual choice is recorded as rule
+`manual`, and is still verified and escalated like any other.
 
 | Route | View | Shown to |
 |---|---|---|
@@ -232,7 +238,7 @@ Each is one `data: {json}` line with a `type`:
 |---|---|---|
 | `conversation` | `id` | first, so a new conversation gets its address mid-run |
 | `step` | `n`, `kind`, `label`, `detail` | route, tool, result, verify, escalate, retry, done; audited and saved |
-| `thinking` | `text` | the model's reasoning as it arrives; shown in the Inspector, not saved |
+| `thinking` | `text` | the model's reasoning as it arrives; shown inline, and saved with the turn (capped at 20,000 characters) |
 | `token` | `text` | answer text as it arrives |
 | `answer_reset` | `reason` | streamed text is withdrawn. With a reason (a failed check such as `invented-citation`) the interface shows *Revising*; empty means it was narration before a tool call |
 | `final` | answer, evidence, deliverables, decision, verdict, steps, title | the verified answer; replaces whatever streamed |

@@ -61,3 +61,20 @@ def test_status_shows_where_each_rule_routes():
     assert rules and all("if" in r and "then" in r for r in rules)
     math = next(r for r in rules if r["name"] == "deterministic-math")
     assert math["then"]["tier"] == "L0" and math["if"] == {"task": "arithmetic"}
+
+
+def test_run_refuses_a_model_outside_the_registry():
+    """The picker's value reaches the server as free text; only registry ids
+    may be run, so nothing can name an arbitrary hosted model."""
+    import time
+    from app.auth import USERS, User
+    # An in-memory user, never saved: the real account store is not touched.
+    USERS.users["_picker_test"] = User(username="_picker_test", password="x", role="engineer")
+    try:
+        payload = f"_picker_test:1:{int(time.time() + 60)}"
+        token = f"{payload}.{USERS._sign(payload)}"
+        r = client.post("/api/run", data={"prompt": "hi", "model": "gpt-4o"},
+                        headers={"Authorization": f"Bearer {token}"})
+        assert r.status_code == 400, r.status_code
+    finally:
+        del USERS.users["_picker_test"]

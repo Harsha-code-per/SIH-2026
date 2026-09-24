@@ -195,7 +195,8 @@ class Agent:
     async def run(self, prompt: str, *, has_image: bool = False,
                   attachment: str | None = None,
                   history: list[dict] | None = None,
-                  allow_escalation: bool = True) -> dict:
+                  allow_escalation: bool = True,
+                  model: str | None = None) -> dict:
         self.history = history or []
         note = None
         if attachment:
@@ -219,7 +220,8 @@ class Agent:
             prior = " ".join(m["content"] for m in history if m["role"] == "user")
             routing_text = f"{prior} {prompt}"
         decision = self.router.route(routing_text, has_image=has_image,
-                                     image_kind=(v["kind"] if attachment else None))
+                                     image_kind=(v["kind"] if attachment else None),
+                                     choose=model)
 
         # A vision tier reads an image; it cannot run the conversation. The
         # tools reach for it themselves, so the loop stays with a model that
