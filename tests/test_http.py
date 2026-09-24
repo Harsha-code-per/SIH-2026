@@ -43,3 +43,12 @@ def test_unknown_api_paths_404_rather_than_serving_the_app():
 def test_deep_links_serve_the_app():
     r = client.get("/c/anything")
     assert r.status_code == 200 and "text/html" in r.headers.get("content-type", "")
+
+
+def test_status_shows_where_each_rule_routes():
+    """The Models view draws the routing table from this; a rule without its
+    target would render as a reason with no destination."""
+    rules = client.get("/api/status").json()["rules"]
+    assert rules and all("if" in r and "then" in r for r in rules)
+    math = next(r for r in rules if r["name"] == "deterministic-math")
+    assert math["then"]["tier"] == "L0" and math["if"] == {"task": "arithmetic"}

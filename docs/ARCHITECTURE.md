@@ -180,6 +180,20 @@ Node stage (D-51). For development, `make web-dev` runs Vite with hot reload on
 The layout and its reasoning — history sidebar, conversation centre, Inspector
 on the right — are in `docs/ui/REFERENCE.md`.
 
+| Route | View | Shown to |
+|---|---|---|
+| `/`, `/c/<id>` | conversation (`web/src/pages/chat.tsx`) | everyone |
+| `/knowledge` | documents, passage search, rebuild (`web/src/pages/knowledge.tsx`) | everyone; rebuild needs `manage_kb` |
+| `/admin/users` | accounts and roles (`web/src/pages/users.tsx`) | `manage_users` |
+| `/admin/models` | tiers and routing rules from `models.yaml`, reload (`web/src/pages/models.tsx`) | `manage_models` |
+| `/admin/audit` | the audit log, filtered (`web/src/pages/audit.tsx`) | `read_audit` |
+
+**⌘K / Ctrl+K** opens a palette of every destination, task template and
+conversation (`web/src/components/app/command-palette.tsx`). Typing **/** in
+the composer lists the same task templates (`web/src/lib/templates.ts`). A
+template only fills the composer; the router still picks the tier from the
+words.
+
 ## API
 
 All endpoints except `/api/login` and `/api/status` need `Authorization: Bearer <token>`,

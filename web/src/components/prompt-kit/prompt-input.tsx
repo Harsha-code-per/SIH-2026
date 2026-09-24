@@ -155,11 +155,14 @@ function PromptInputTextarea({
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // The caller goes first and can claim the key by preventing default -- the
+    // slash-command menu takes Enter to pick a command, not to send.
+    onKeyDown?.(e)
+    if (e.defaultPrevented) return
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault()
       onSubmit?.()
     }
-    onKeyDown?.(e)
   }
 
   return (

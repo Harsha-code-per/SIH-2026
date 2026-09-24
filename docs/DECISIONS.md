@@ -444,6 +444,22 @@ compared only the text, so new renderers never took effect. Both edited in the
 vendored copy, which is why it is vendored.
 **Where:** `web/src/components/prompt-kit/markdown.tsx`.
 
+### D-59 · This shadcn `CommandDialog` does not include the cmdk root
+**Why:** the generated `CommandDialog` renders its children straight into the
+dialog. Items outside a `<Command>` throw reading cmdk's store, and with no
+error boundary the whole interface went blank on ⌘K. The palette wraps its
+content in `<Command>`, and routes now sit inside an error boundary that resets
+on navigation.
+**Where:** `web/src/components/app/command-palette.tsx`,
+`web/src/components/app/error-boundary.tsx`.
+
+### D-60 · The composer's key handler runs before prompt-kit submits
+**Why:** prompt-kit's textarea submitted on Enter and only then called the
+caller's `onKeyDown`, so Enter in the slash-command menu sent "/no" as a
+prompt. The vendored copy now calls the caller first and skips submitting if
+it called `preventDefault()`.
+**Where:** `web/src/components/prompt-kit/prompt-input.tsx`.
+
 ---
 
 ## Environment facts worth knowing

@@ -7,6 +7,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card"
 import { api } from "@/lib/api"
+import { TEMPLATES, takePrefill } from "@/lib/templates"
 import { IMAGE_LIKE, TIER } from "@/lib/tiers"
 import type { Decision } from "@/lib/types"
 import { cn } from "@/lib/utils"
@@ -26,12 +27,54 @@ export function Composer({ onSend, onStop, running, attachment, setAttachment, a
   const [uploading, setUploading] = useState(false)
   const [preview, setPreview] = useState<Decision | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
+  const boxRef = useRef<HTMLDivElement>(null)
+  const [pick, setPick] = useState(0)
+
+  // Slash commands: "/" alone, or "/no", lists the templates that match.
+  const slash = /^\/(\w*)$/.exec(value)
+  const commands = slash ? TEMPLATES.filter((t) => t.cmd.startsWith(slash[1].toLowerCase())) : []
+  const active = Math.min(pick, commands.length - 1)
+
+  const fill = (text: string) => {
+    setValue(text)
+    setPick(0)
+    requestAnimationFrame(() => {
+      const ta = boxRef.current?.querySelector("textarea")
+      ta?.focus()
+      ta?.setSelectionRange(text.length, text.length)
+    })
+  }
+
+  // A template chosen from the palette, possibly before this mounted.
+  useEffect(() => {
+    const take = () => { const t = takePrefill(); if (t) fill(t) }
+    take()
+    window.addEventListener("workbench:prefill", take)
+    return () => window.removeEventListener("workbench:prefill", take)
+  }, [])
+
+  const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (!commands.length) return
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault()
+      const step = e.key === "ArrowDown" ? 1 : -1
+      setPick((active + step + commands.length) % commands.length)
+    } else if (e.key === "Enter" || e.key === "Tab") {
+      e.preventDefault()
+      fill(commands[active].prompt)
+    } else if (e.key === "Escape") {
+      e.preventDefault()
+      setValue("")
+    }
+  }
 
   // Routing preview. The reference products hand the user a model picker; this
   // one routes by itself and shows where the request will go before it is sent.
   useEffect(() => {
     const prompt = value.trim()
-    if (!prompt) { setPreview(null); return }
+    // A bare "/cmd" is the slash menu, not a request; "/" alone routes as
+    // arithmetic and would preview "No model".
+    if (!prompt || /^\/\w*$/.test(prompt)) { setPreview(null); return }
     const t = setTimeout(() => {
       api.post<Decision>("/api/route", {
         prompt,
@@ -73,7 +116,23 @@ export function Composer({ onSend, onStop, running, attachment, setAttachment, a
   const tier = preview ? TIER[preview.tier] : null
 
   return (
-    <div className={cn("w-full", className)}>
+    <div ref={boxRef} className={cn("relative w-full", className)}>
+      {commands.length > 0 && (
+        <div role="listbox" aria-label="Commands"
+             className="absolute inset-x-0 bottom-full z-20 mb-2 overflow-hidden rounded-xl border bg-popover p-1 shadow-lg">
+          {commands.map((t, i) => (
+            <button key={t.cmd} role="option" aria-selected={i === active} type="button"
+                    onMouseEnter={() => setPick(i)} onMouseDown={(e) => { e.preventDefault(); fill(t.prompt) }}
+                    className={cn("flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-left",
+                                  i === active && "bg-accent")}>
+              <t.icon className="size-4 shrink-0 text-muted-foreground" />
+              <span className="text-sm font-medium">{t.title}</span>
+              <span className="min-w-0 truncate text-xs text-muted-foreground">{t.hint}</span>
+              <span className="ml-auto font-mono text-xs text-muted-foreground">/{t.cmd}</span>
+            </button>
+          ))}
+        </div>
+      )}
       <PromptInput value={value} onValueChange={setValue} onSubmit={send}
                    isLoading={running} maxHeight={220}
                    className="rounded-2xl border-border bg-card p-2 shadow-sm
@@ -103,8 +162,9 @@ export function Composer({ onSend, onStop, running, attachment, setAttachment, a
           </div>
         )}
 
-        <PromptInputTextarea autoFocus={autoFocus}
-          placeholder="Ask about a reading, a document or a drawing…"
+        <PromptInputTextarea autoFocus={autoFocus} onKeyDown={onKeyDown}
+          aria-label="Message"
+          placeholder="Ask about a reading, a document or a drawing — / for tasks"
           // dark:bg-transparent: shadcn's textarea sets dark:bg-input/30, which
           // outranks a plain bg-transparent and drew a box inside the composer.
           className="px-2 text-[15px] placeholder:text-muted-foreground/70 dark:bg-transparent" />

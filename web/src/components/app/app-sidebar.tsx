@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react"
-import { Link, useNavigate, useParams } from "react-router-dom"
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import {
   BookOpen, Check, ChevronsUpDown, Cpu, LogOut, Monitor, Moon, MoreHorizontal,
   Pencil, ScrollText, Search, Settings, SquarePen, Sun, Trash2, Users,
@@ -38,6 +38,7 @@ export function AppSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
   const { theme, setTheme } = useTheme()
   const { id: activeId } = useParams()
   const navigate = useNavigate()
+  const { pathname } = useLocation()
   const { state, setOpenMobile } = useSidebar()
   const [query, setQuery] = useState("")
   const [renaming, setRenaming] = useState<ConversationSummary | null>(null)
@@ -68,7 +69,7 @@ export function AppSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton tooltip="Knowledge base" onClick={() => go("/knowledge")}>
+            <SidebarMenuButton tooltip="Knowledge base" isActive={pathname === "/knowledge"} onClick={() => go("/knowledge")}>
               <BookOpen /> <span>Knowledge base</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
@@ -76,24 +77,28 @@ export function AppSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
       </SidebarHeader>
 
       <SidebarContent>
-        {can("manage_users") && (
+        {(can("manage_users") || can("manage_models") || can("read_audit")) && (
           <SidebarGroup>
             <SidebarGroupLabel>Administration</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                <SidebarMenuItem>
-                  <SidebarMenuButton tooltip="Users" onClick={() => go("/admin/users")}>
-                    <Users /> <span>Users</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-                <SidebarMenuItem>
-                  <SidebarMenuButton tooltip="Models" onClick={() => go("/admin/models")}>
-                    <Cpu /> <span>Models</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
+                {can("manage_users") && (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton tooltip="Users" isActive={pathname === "/admin/users"} onClick={() => go("/admin/users")}>
+                      <Users /> <span>Users</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )}
+                {can("manage_models") && (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton tooltip="Models" isActive={pathname === "/admin/models"} onClick={() => go("/admin/models")}>
+                      <Cpu /> <span>Models</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )}
                 {can("read_audit") && (
                   <SidebarMenuItem>
-                    <SidebarMenuButton tooltip="Audit log" onClick={() => go("/admin/audit")}>
+                    <SidebarMenuButton tooltip="Audit log" isActive={pathname === "/admin/audit"} onClick={() => go("/admin/audit")}>
                       <ScrollText /> <span>Audit log</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>

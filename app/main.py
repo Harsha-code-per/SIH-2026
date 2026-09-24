@@ -183,7 +183,8 @@ async def status():
              "max_tokens": m.get("max_tokens")}
             for m in router.models
         ],
-        "rules": [{"name": r["name"], "why": r["why"]} for r in router.routing_rules],
+        "rules": [{"name": r["name"], "why": r["why"], "if": r.get("if", {}),
+                   "then": r.get("then", {})} for r in router.routing_rules],
     }
 
 

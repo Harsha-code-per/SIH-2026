@@ -71,7 +71,10 @@ shadcn/ui and prompt-kit on Vite. Findings from studying the three live are in
   on hover and pin it in the Inspector on click; passages rendered as markdown;
   a verification seal built only from checks the backend ran; the routing chip
   with its reason; deliverables as file cards with an outline and Download
-- [ ] **E. Views** — Knowledge, Models, Audit, Users, Settings, ⌘K, slash commands
+- [x] **E. Views** — Knowledge (documents, passage search, rebuild), Users
+  (add, role, remove), Models (tiers and routing rules, reload), Audit (filtered
+  log); ⌘K palette; `/` task templates in the composer; an error boundary so a
+  failing view no longer blanks the page
 - [ ] **F. Verify** — responsive, both themes, accessibility, side-by-side with references
 - [ ] **G. Streaming** — token and thinking streams, visible revision on repair
 

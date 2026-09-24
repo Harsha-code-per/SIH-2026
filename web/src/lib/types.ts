@@ -109,6 +109,7 @@ export interface Status {
   endpoint: string
   egress: Egress
   models: ModelInfo[]
+  rules: { name: string; why: string; if: Record<string, unknown>; then: { tier?: Tier; tool?: string } }[]
 }
 
 // Events on the /api/run stream.
