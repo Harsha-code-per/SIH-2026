@@ -28,7 +28,7 @@ export function SignIn() {
   }
 
   return (
-    <main className="ambient grid min-h-svh place-items-center bg-background p-6">
+    <main className="aurora relative grid min-h-svh place-items-center bg-background p-6">
       <div className="w-full max-w-[360px]">
         <div className="mb-8 flex flex-col items-center text-center">
           <div className="mb-5 grid size-12 place-items-center rounded-2xl border bg-card shadow-sm">

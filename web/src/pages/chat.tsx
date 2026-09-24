@@ -131,7 +131,7 @@ export function ChatPage() {
         </header>
 
         {empty ? (
-          <div className="ambient flex flex-1 flex-col items-center justify-center px-4 pb-16">
+          <div className="flex flex-1 flex-col items-center justify-center px-4 pb-16">
             <div className="w-full max-w-[680px]">
               <div className="mb-8 flex flex-col items-center gap-3 text-center">
                 <span className="grid size-14 place-items-center rounded-2xl border border-brand/20 bg-card/70 shadow-lg shadow-brand/20 backdrop-blur">

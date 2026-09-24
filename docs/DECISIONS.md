@@ -525,6 +525,17 @@ of the checks.
 `web/src/components/app/composer.tsx`, `tests/test_router.py`,
 `tests/test_http.py`.
 
+### D-68 · A plain-CSS class beats Tailwind's state variants
+**Why:** the send button used `.bg-brand-gradient`, a plain CSS class, with
+`disabled:bg-none disabled:bg-muted` to grey it out when empty. The plain class
+won, and an empty composer showed a dim purple blob; enabled, the indigo-violet
+gradient sat too close to the indigo background to find. The button is now a
+solid high-contrast fill (white in the dark theme, near-black in the light),
+and its disabled look is a separate class list chosen in code rather than a
+variant layered over the gradient. The three-colour glow behind the empty
+page and sign-in was removed as well; it read as a blob in the centre.
+**Where:** `web/src/components/app/composer.tsx`, `web/src/index.css`.
+
 ---
 
 ## Environment facts worth knowing

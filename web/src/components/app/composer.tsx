@@ -259,11 +259,18 @@ export function Composer({ onSend, onStop, running, attachment, setAttachment, a
                 <Square className="size-3 fill-current" />
               </Button>
             ) : (
+              // Solid and high-contrast, as Claude and ChatGPT do it: the brand
+              // gradient sat too close to the indigo background to find. The
+              // disabled look is a separate class list, not a variant layered
+              // over the gradient -- the plain-CSS gradient won that fight and
+              // left a dim purple blob.
               <Button size="icon" onClick={send} disabled={!value.trim() || uploading}
-                      className="bg-brand-gradient size-8 rounded-full text-white shadow-md shadow-brand/30
-                                 transition-transform hover:scale-105 disabled:bg-none disabled:bg-muted
-                                 disabled:text-muted-foreground disabled:shadow-none" aria-label="Send">
-                <ArrowUp className="size-4" />
+                      aria-label="Send"
+                      className={cn("size-9 rounded-full transition-[transform,background-color]",
+                        !value.trim() || uploading
+                          ? "bg-muted text-muted-foreground disabled:opacity-100"
+                          : "bg-foreground text-background shadow-md hover:scale-105 hover:bg-foreground/90")}>
+                <ArrowUp className="size-[18px]" strokeWidth={2.5} />
               </Button>
             )}
           </div>
