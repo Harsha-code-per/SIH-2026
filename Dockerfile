@@ -1,3 +1,15 @@
+# ---- stage 1: the interface -------------------------------------------------
+# Built here, served by FastAPI below. Every font and script is bundled at this
+# step, so the browser loads nothing from outside at runtime (D-13). npm needs a
+# network now exactly as pip does below; the lockfile makes it reproducible.
+FROM node:22-alpine AS web
+WORKDIR /build/web
+COPY web/package.json web/package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY web/ ./
+RUN npm run build          # writes ../static, i.e. /build/static
+
+# ---- stage 2: the application ----------------------------------------------
 FROM python:3.12-slim
 # tcpdump is the independent observer: the app cannot lie to it about what left
 # the machine. docker-cli launches the code sandbox (on Debian 13 the CLI is
@@ -24,6 +36,6 @@ v = list(m.embed(['warm the cache'])); \
 print('embedding model baked in, dim', len(v[0]))"
 
 COPY app ./app
-COPY static ./static
+COPY --from=web /build/static ./static
 COPY models.yaml ./
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8117"]

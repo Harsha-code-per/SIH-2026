@@ -16,3 +16,6 @@ data/secret.key
 *.key
 *.pem
 data/conversations/
+static/
+web/node_modules/
+web/dist/

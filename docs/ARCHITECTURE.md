@@ -164,11 +164,21 @@ software needed to audit it.
 Routes, capability gates (`needs("...")`), SSE for the run trace and the egress
 monitor.
 
-### `static/index.html` — the interface
-One file, no build step, no external resources (D-13). Sign-in gate, task
-composer with attachments, conversation transcript, pipeline indicator, routing
-decision, streaming trace, result with downloads, containment panel, evidence,
-and Models / Knowledge / Audit / Admin tabs gated by role.
+### `web/` — the interface
+Vite + React 19 + TypeScript, styled with Tailwind v4. Components come from
+**shadcn/ui** (base: sidebar, dialogs, menus, hover cards, command palette) and
+**prompt-kit** (AI: reasoning, steps, tool calls, sources, markdown, prompt
+input), both copied into `web/src/components/` as source rather than installed
+as runtime dependencies — so nothing is fetched and every line is ours to
+change (D-49, D-50). Design tokens for both themes are in `web/src/index.css`.
+
+`npm run build` writes into `../static/`, which FastAPI serves. `static/` is
+build output: gitignored, never edited by hand. The Docker image builds it in a
+Node stage (D-51). For development, `make web-dev` runs Vite with hot reload on
+:5173 and proxies `/api` to the running stack.
+
+The layout and its reasoning — history sidebar, conversation centre, Inspector
+on the right — are in `docs/ui/REFERENCE.md`.
 
 ## API
 

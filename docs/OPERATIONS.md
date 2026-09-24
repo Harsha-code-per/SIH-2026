@@ -37,12 +37,14 @@ the embedding model into the image. After that, `make restart` takes seconds.
 | `make open` | open the interface |
 | `make prove` | show containment from inside the running app |
 | `make sovereign` | start with no gateway — nothing reachable |
-| `make test` | all 113 tests (sandbox tests need Docker) |
+| `make test` | all 117 tests (sandbox tests need Docker) |
 | `make test-v` | the same, naming each test |
 | `make secrets` | scan every tracked file for credentials |
 | `make verify-models` | check `models.yaml` against the live catalogue |
 | `make sample` | regenerate the scanned report and P&ID fixtures |
-| `make dev` | run on the host with autoreload — **no containment** |
+| `make dev` | build the interface, then run on the host with autoreload — **no containment** |
+| `make web` | build the interface into `static/` (needs Node) |
+| `make web-dev` | interface with hot reload on :5173, proxying to the running stack |
 | `make watch` | independent packet capture for a demo split-screen (sudo) |
 
 ## Configuration
@@ -68,6 +70,11 @@ uv venv --python 3.12 .venv && uv pip install -r requirements.txt
 docker build -t wb-sandbox sandbox/     # the code sandbox image
 make dev                                # http://127.0.0.1:8117, autoreload
 ```
+
+For the interface, run the stack (`make up`) and then `make web-dev`: Vite
+serves on <http://127.0.0.1:5173> with hot reload and proxies `/api` to the
+stack. Needs Node 22 or newer on the host. `static/` is build output — edit
+`web/src/`, never `static/`.
 
 Host mode has **no containment** — the header will say *unenforced*. That is
 correct, not a fault. Demonstrate from `make up`, never from `make dev`.

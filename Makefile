@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help hooks secrets up down logs restart open dev test test-v prove sample verify-models sovereign enforce unenforce watch
+.PHONY: help hooks secrets web web-dev up down logs restart open dev test test-v prove sample verify-models sovereign enforce unenforce watch
 VENV := .venv/bin
 URL  := http://127.0.0.1:8117
 export DOCKER_UID := $(shell id -u)
@@ -39,8 +39,14 @@ prove:                   ## show containment from inside the running app
 
 # ---- host mode: fast iteration, no containment ------------------------------
 
-dev:                     ## run on the host with autoreload (no enforcement)
+dev: web                 ## run on the host with autoreload (no enforcement)
 	$(VENV)/uvicorn app.main:app --reload --port 8117
+
+web:                     ## build the interface into static/
+	cd web && npm ci --no-audit --no-fund --silent && npm run build
+
+web-dev:                 ## interface with hot reload on :5173 (needs the API up)
+	cd web && npm run dev
 
 test:                    ## every check; sandbox ones need docker
 	@$(VENV)/python tests/run.py | tail -3

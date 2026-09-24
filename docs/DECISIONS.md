@@ -360,6 +360,38 @@ every 404 through and the fallback silently never fires. Deep links like
 `/c/<id>` then 404 on reload.
 **Where:** `app/main.py::SPA`.
 
+### D-49 · Vite, not Next.js
+**Why:** the interface is a static bundle FastAPI serves, so the deployment
+stays one container and one server process. Next.js would add a Node server
+alongside FastAPI for server rendering this tool does not need.
+**Where:** `web/vite.config.ts`.
+
+### D-50 · prompt-kit for the AI components, not Vercel AI Elements
+Both sit on shadcn/ui. AI Elements lists Next.js and the Vercel AI SDK's
+`useChat` runtime as prerequisites; our backend is FastAPI with its own SSE
+protocol. prompt-kit was checked in source to import only React, lucide and
+markdown libraries, so it can be driven by any state. assistant-ui was rejected
+as a runtime layer built around other backends; Aceternity as motion suited to
+landing pages rather than a work tool.
+Three files needed strictness fixes on import (type-only imports, an unused
+import) — the vendored copy is ours and is edited in place.
+**Where:** `web/src/components/prompt-kit/`, `docs/ui/REFERENCE.md`.
+
+### D-51 · `static/` is build output, and `.dockerignore` keeps the context clean
+The Dockerfile builds the interface in a `node:22-alpine` stage and copies the
+result in. **Why a `.dockerignore`:** without one, `COPY web/` laid the host's
+`node_modules` — installed for glibc — over the Alpine `npm ci` result, and the
+build context carried `.env` and `data/secret.key` to the Docker daemon. Neither
+reached the image, but neither had any reason to leave the host.
+**Where:** `Dockerfile`, `.dockerignore`, `web/vite.config.ts` (`outDir`).
+
+### D-52 · The registry was fetched with curl, not the shadcn CLI
+**Why:** the CLI gives up on a request after ten seconds, which on a slow link
+fails every time; `curl` with retries succeeded. The prompt-kit registry files
+were downloaded and their sources written directly. Useful again on any slow
+or restricted network.
+**Where:** `web/src/components/prompt-kit/`.
+
 ---
 
 ## Environment facts worth knowing

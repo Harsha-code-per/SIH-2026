@@ -1,0 +1,15 @@
+# Keep the build context to what the image needs.
+#
+# node_modules in particular must not ride along: the host's were installed for
+# glibc, and COPY web/ would lay them over the Alpine `npm ci` result. Secrets
+# and runtime state never need to reach the Docker daemon at all.
+.git
+.venv
+**/node_modules
+**/__pycache__
+web/dist
+static
+data
+.env
+*.key
+*.pem

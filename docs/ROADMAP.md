@@ -60,16 +60,16 @@ shadcn/ui and prompt-kit on Vite. Findings from studying the three live are in
 
 - [x] **A. Backend** — owned, persistent conversations; scoped and gated API;
   SPA fallback; deliverable outline; no tokens in URLs
-- [ ] **B. Scaffold** — `web/` with Vite, Tailwind v4, shadcn, prompt-kit; multi-stage build
+- [x] **B. Scaffold** — `web/` with Vite, Tailwind v4, shadcn, prompt-kit; warm
+  neutral tokens for both themes; multi-stage build; bundled fonts
 - [ ] **C. Shell** — sign-in, sidebar with history, thread, composer, Inspector
 - [ ] **D. AI rendering** — markdown, reasoning summary, citations, verification seal, file cards
 - [ ] **E. Views** — Knowledge, Models, Audit, Users, Settings, ⌘K, slash commands
 - [ ] **F. Verify** — responsive, both themes, accessibility, side-by-side with references
 - [ ] **G. Streaming** — token and thinking streams, visible revision on repair
 
-**Transitional state:** until phase C lands, the old interface's containment
-panel and download links return 401 — both are now header-authenticated and the
-old page used `EventSource` and plain links. Use the API or `make prove`.
+**Transitional state:** the old single-file interface is removed and the new
+one is a placeholder until phase C lands. Use the API or `make prove`.
 
 ## Phase 3 — Demo completion `IN PROGRESS · due 30 Sept`
 

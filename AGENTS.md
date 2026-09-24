@@ -25,7 +25,8 @@ in `docs/PROBLEM-STATEMENT.md`.
 
 ## The one-paragraph technical summary
 
-A FastAPI backend serves a single-page interface. A **deterministic router**
+A FastAPI backend serves a React interface built with Vite, shadcn/ui and
+prompt-kit. A **deterministic router**
 reads the request and picks a computational tier (L0 arithmetic with no model,
 L1 cheap text, L2 reasoning, LV document vision, LV2 drawing vision) from a
 YAML registry. An **agent loop** drives a tool-calling conversation with nine
@@ -63,7 +64,8 @@ app/auth.py        users, roles, signed tokens
 app/sessions.py    multi-turn conversation state
 app/llm.py         OpenAI-protocol client; NIM, Ollama, vLLM alike
 app/main.py        HTTP API and SSE streaming
-static/index.html  the whole interface, one file, zero external resources
+web/               the interface: Vite + React + TypeScript + shadcn/ui + prompt-kit
+static/            build output of web/ — never edit by hand, gitignored
 models.yaml        model registry and routing rules — config, not code
 egress/proxy.conf  the controlled-egress gateway
 tests/run.py       the test runner; `make test`
@@ -88,11 +90,14 @@ real bug that is written up in `docs/DECISIONS.md`.
 5. **Ship the models, never fetch at runtime.** The embedding model is baked
    into the image at build time. Anything downloaded on first use fails in an
    air-gapped deployment, and fails quietly.
-6. **Every non-trivial behaviour has a runnable test.** 113 currently, via
+6. **Every non-trivial behaviour has a runnable test.** 117 currently, via
    `make test`. Tests are collected by `tests/run.py`, never by a `__main__`
    block — see decision D-41 in `docs/DECISIONS.md` for why.
-7. **The interface loads zero external resources.** No CDN, no Google Fonts. An
-   air-gapped workbench that fetches a stylesheet undermines its own claim.
+7. **The interface loads zero external resources.** No CDN, no Google Fonts —
+   fonts come from `@fontsource`, components are copied into `web/src` as
+   source. This matters twice over: the container cannot reach the internet but
+   the *browser* can, so an external load would bypass every egress control
+   unseen. `tests/test_web_build.py` checks both source and build.
 
 ## What is real and what is not
 
