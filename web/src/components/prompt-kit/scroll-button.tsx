@@ -32,6 +32,11 @@ function ScrollButton({
         className
       )}
       onClick={() => scrollToBottom()}
+      // Icon-only, so it needs a name; and while faded out at the bottom it
+      // must not take a Tab stop the user cannot see.
+      aria-label="Scroll to latest"
+      aria-hidden={isAtBottom}
+      tabIndex={isAtBottom ? -1 : 0}
       {...props}
     >
       <ChevronDown className="h-5 w-5" />

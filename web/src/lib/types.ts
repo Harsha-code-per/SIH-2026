@@ -102,6 +102,7 @@ export interface ModelInfo {
   name: string
   why: string
   max_tokens: number | null
+  modes: Record<string, string | null>
 }
 
 export interface Status {

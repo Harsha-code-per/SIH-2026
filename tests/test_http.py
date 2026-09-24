@@ -45,6 +45,15 @@ def test_deep_links_serve_the_app():
     assert r.status_code == 200 and "text/html" in r.headers.get("content-type", "")
 
 
+def test_status_names_the_local_model_for_every_tier():
+    """The pitch that local inference is one config change rests on each tier
+    already naming its on-premise model."""
+    status = client.get("/api/status").json()
+    for m in status["models"]:
+        assert m["modes"].get("sovereign"), f"{m['id']} has no on-premise model"
+        assert m["modes"][status["mode"]] == m["name"]
+
+
 def test_status_shows_where_each_rule_routes():
     """The Models view draws the routing table from this; a rule without its
     target would render as a reason with no destination."""

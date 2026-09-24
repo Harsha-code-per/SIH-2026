@@ -75,7 +75,10 @@ shadcn/ui and prompt-kit on Vite. Findings from studying the three live are in
   (add, role, remove), Models (tiers and routing rules, reload), Audit (filtered
   log); ⌘K palette; `/` task templates in the composer; an error boundary so a
   failing view no longer blanks the page
-- [ ] **F. Verify** — responsive, both themes, accessibility, side-by-side with references
+- [x] **F. Verify** — phone width (the Inspector no longer covers the
+  conversation), both themes (native controls follow the app theme), unnamed
+  controls swept, zero requests to any host but the workbench on every view,
+  demo playbook click paths rewritten, clean clone builds and passes
 - [ ] **G. Streaming** — token and thinking streams, visible revision on repair
 
 **Transitional state:** Knowledge, Users, Models and Audit are placeholder

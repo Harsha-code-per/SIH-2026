@@ -44,6 +44,10 @@ export function ChatPage() {
   const [attachment, setAttachment] = useState<Attachment | null>(null)
   const [dragging, setDragging] = useState(false)
   const [inspectorOpen, setInspectorOpen] = useState(() => pref("inspector:open", true))
+  // On a phone the Inspector is a sheet over the conversation, so it opens
+  // only when asked for -- never on load or when a run starts -- and closing
+  // it leaves the desktop preference alone.
+  const [sheetOpen, setSheetOpen] = useState(false)
   const [tab, setTab] = useState<InspectorTab>("activity")
   const [selected, setSelected] = useState<number | null>(null)
   const [highlight, setHighlight] = useState<string | null>(null)
@@ -65,10 +69,10 @@ export function ChatPage() {
     setSelected(null)
     // The Inspector opens when a run starts -- unless the user closed it, in
     // which case it stays closed until they open it again.
-    if (pref("inspector:auto", true)) { setInspectorOpen(true); setTab("activity") }
+    if (!isMobile && pref("inspector:auto", true)) { setInspectorOpen(true); setTab("activity") }
     void thread.send(prompt, a?.path ?? null)
     setAttachment(null)
-  }, [thread])
+  }, [thread, isMobile])
 
   const subject: InspectorSubject | null = useMemo(() => {
     if (thread.live && selected === null) {
@@ -80,16 +84,20 @@ export function ChatPage() {
   }, [thread.live, thread.turns, selected])
 
   const inspect = (i: number) => {
-    setSelected(i); setHighlight(null); setInspectorOpen(true)
+    setSelected(i); setHighlight(null)
+    if (isMobile) { setSheetOpen(true); return }
+    setInspectorOpen(true)
     setPref("inspector:open", true); setPref("inspector:auto", true)
   }
   const openSource = (i: number, id: string) => {
     inspect(i); setTab("sources"); setHighlight(id)
   }
   const closeInspector = () => {
+    if (isMobile) { setSheetOpen(false); return }
     setInspectorOpen(false); setPref("inspector:open", false); setPref("inspector:auto", false)
   }
-  const toggleInspector = () => (inspectorOpen ? closeInspector() : inspect(selected ?? thread.turns.length - 1))
+  const shown = isMobile ? sheetOpen : inspectorOpen
+  const toggleInspector = () => (shown ? closeInspector() : inspect(selected ?? thread.turns.length - 1))
 
   const onDrop = (e: React.DragEvent) => {
     e.preventDefault(); setDragging(false)
@@ -123,18 +131,19 @@ export function ChatPage() {
         <header className="flex h-12 shrink-0 items-center gap-2 px-3">
           {(!sidebarOpen || isMobile) && <SidebarTrigger className="text-muted-foreground" />}
           <h1 className="min-w-0 truncate text-sm font-medium">{title ?? (empty ? "" : "New conversation")}</h1>
-          <div className="ml-auto">
+          {/* Nothing to inspect before the first turn. */}
+          {!empty && <div className="ml-auto">
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button variant="ghost" size="icon" className="size-8 text-muted-foreground"
                         onClick={toggleInspector} aria-label="Toggle Inspector"
-                        aria-pressed={inspectorOpen}>
+                        aria-pressed={shown}>
                   <PanelRight className="size-4" />
                 </Button>
               </TooltipTrigger>
               <TooltipContent>Inspector</TooltipContent>
             </Tooltip>
-          </div>
+          </div>}
         </header>
 
         {empty ? (
@@ -206,7 +215,7 @@ export function ChatPage() {
       {/* Pushes the conversation aside rather than covering it, as ChatGPT's
           Sources panel does. On a phone it becomes a sheet. */}
       {isMobile ? (
-        <Sheet open={inspectorOpen} onOpenChange={(o) => (o ? setInspectorOpen(true) : closeInspector())}>
+        <Sheet open={sheetOpen && !empty} onOpenChange={(o) => (o ? setSheetOpen(true) : closeInspector())}>
           <SheetContent side="bottom" className="h-[80svh] p-0">
             <SheetTitle className="sr-only">Inspector</SheetTitle>
             {inspector}

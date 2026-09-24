@@ -111,7 +111,7 @@ answer instead of a judgement call.
    with nine local tools; hybrid RAG with enforced citations; vision for scans
    and drawings; containment by an unroutable network. Name the models.
 4. **Feasibility** — measured, not claimed: flagship question 6s; scanned page
-   48s cold, 0s cached; drawing 12s; 123 automated tests; tripwire blocked in
+   48s cold, 0s cached; drawing 12s; 124 automated tests; tripwire blocked in
    1ms. Hosted today, one configuration change to local — say so plainly.
 5. **Impact** — MRPL-specific: approval notes, inspection review, P&ID lookup;
    zero egress by construction; every action attributed in an audit log.

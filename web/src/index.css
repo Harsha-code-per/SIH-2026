@@ -139,7 +139,15 @@
 @layer base {
   * {
     @apply border-border outline-ring/50;
+    /* Thin and quiet, like the reference products; the native bar with
+       arrows read as a second frame around the thread. */
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in oklch, var(--muted-foreground) 35%, transparent) transparent;
     }
+  /* Native controls follow the app's theme, not the OS: the meta tag alone
+     drew dark scrollbars in the light theme on a dark-mode desktop. */
+  :root { color-scheme: light; }
+  :root.dark { color-scheme: dark; }
   body {
     @apply bg-background text-foreground;
     }

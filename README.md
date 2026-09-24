@@ -39,7 +39,7 @@ make up          # then open http://127.0.0.1:8117
 | Scanned page transcription | **48 s** first time · **0 s** cached |
 | Engineering drawing, tiled and concurrent | **12 s** |
 | Tripwire to `api.openai.com` | **blocked in ~1 ms**, at DNS |
-| Automated tests | **123 passing** |
+| Automated tests | **124 passing** |
 
 ## Documentation
 

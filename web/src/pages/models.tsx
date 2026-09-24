@@ -81,6 +81,11 @@ export function ModelsPage() {
                 <TierChip tier={m.tier} className="w-36" />
                 <div className="min-w-0 flex-1">
                   <div className="break-all font-mono text-xs">{m.name}</div>
+                  {Object.entries(m.modes).filter(([mode, name]) => mode !== data.mode && name).map(([mode, name]) => (
+                    <div key={mode} className="mt-0.5 break-all font-mono text-xs text-muted-foreground">
+                      <span className="font-sans">{mode === "sovereign" ? "On-premise" : mode}:</span> {name}
+                    </div>
+                  ))}
                   <p className="mt-1 text-sm text-muted-foreground">{m.why}</p>
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     {m.caps.map((c) => (

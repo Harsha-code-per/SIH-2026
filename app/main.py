@@ -180,6 +180,9 @@ async def status():
         "models": [
             {"id": m["id"], "tier": m["tier"], "caps": m["caps"],
              "name": router.resolve(m), "why": m["why"],
+             # What this tier runs in each mode: the Models view shows the
+             # on-premise model beside today's, one config change apart.
+             "modes": {mode: m.get(mode) for mode in router.cfg["modes"]},
              "max_tokens": m.get("max_tokens")}
             for m in router.models
         ],

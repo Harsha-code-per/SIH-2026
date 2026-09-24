@@ -460,6 +460,29 @@ prompt. The vendored copy now calls the caller first and skips submitting if
 it called `preventDefault()`.
 **Where:** `web/src/components/prompt-kit/prompt-input.tsx`.
 
+### D-61 · Native controls follow the app theme, not the operating system
+**Why:** `<meta name="color-scheme" content="dark light">` lets the browser
+choose native scrollbar colours from the OS preference. On a dark-mode desktop
+the light theme drew heavy dark scrollbars down the thread. `color-scheme` is
+now set on `:root` from the app's own theme class, and scrollbars are thin.
+**Where:** `web/src/index.css`.
+
+### D-62 · On a phone the Inspector opens only when asked
+**Why:** the desktop Inspector remembers being open and opens itself when a
+run starts. Shared with the phone layout, that preference put a bottom sheet
+over the conversation on every load — including the empty page, where there
+is nothing to inspect. The sheet has its own state, closed by default, opened
+only by the toggle, *Inspect* or a citation, and closing it leaves the desktop
+preference alone.
+**Where:** `web/src/pages/chat.tsx`.
+
+### D-63 · Each tier names its on-premise model in the interface
+**Why:** "local inference is one configuration change" is a claim the Models
+view should show, not just state. `/api/status` returns every mode's model for
+each tier, and the view prints the on-premise one under today's.
+**Where:** `app/main.py::status`, `web/src/pages/models.tsx`,
+`tests/test_http.py`.
+
 ---
 
 ## Environment facts worth knowing
