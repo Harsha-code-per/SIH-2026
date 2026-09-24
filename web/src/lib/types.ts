@@ -121,3 +121,9 @@ export type RunEvent =
        decision: Decision; evidence: Passage[]; deliverables: Deliverable[];
        verdict: Verdict; steps: Step[] })
   | { type: "error"; error: string }
+  // Streaming (phase G): the answer as it arrives, the model's reasoning, and
+  // a withdrawal when shown text is superseded -- with the failed check as the
+  // reason, or no reason for narration before a tool call.
+  | { type: "token"; text: string }
+  | { type: "thinking"; text: string }
+  | { type: "answer_reset"; reason: string }

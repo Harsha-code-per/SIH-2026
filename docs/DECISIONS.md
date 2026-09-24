@@ -483,6 +483,24 @@ each tier, and the view prints the on-premise one under today's.
 **Where:** `app/main.py::status`, `web/src/pages/models.tsx`,
 `tests/test_http.py`.
 
+### D-64 · Streamed, an overloaded endpoint says so without a status code
+**Why:** non-streamed, a saturated NIM worker raised `Error code: 503` and was
+retried. Streamed, the same condition arrives *inside* the stream as a bare
+`Service temporarily overloaded`, which matched none of the retry patterns, so
+the first streamed run in the browser failed in four seconds. Retry now checks
+the exception's `status_code` and the word "overloaded". A retry after text
+has already gone out first withdraws it.
+**Where:** `app/llm.py::LLM.chat`, `tests/test_streaming.py`.
+
+### D-65 · Text before a tool call is narration, not the answer
+**Why:** models often write "Let me check the SOP" and then call a tool, in
+the same turn. Streamed, that sentence appeared as the start of the answer and
+stayed there while the real answer streamed in after it. When a turn ends in
+tool calls, the agent withdraws its text silently. Likewise, an answer that
+fails verification is withdrawn with the failed check as the reason before an
+escalation or repair runs.
+**Where:** `app/agent.py::Agent._converse`, `app/agent.py::Agent._reset`.
+
 ---
 
 ## Environment facts worth knowing

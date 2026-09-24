@@ -56,8 +56,19 @@ function unwrap(text: string): string {
   return out.join("\n")
 }
 
-function CitationPill({ id, passage, onOpen }: { id: string; passage?: Passage; onOpen?: (id: string) => void }) {
+function CitationPill({ id, passage, onOpen, pending }: {
+  id: string; passage?: Passage; onOpen?: (id: string) => void; pending?: boolean
+}) {
   const { doc, section } = citeParts(passage, id)
+  if (!passage && pending) {
+    // Still streaming: passages arrive with the final answer, and a citation
+    // is only unresolved once the checks have run.
+    return (
+      <span className="mx-0.5 inline-flex items-center gap-1 rounded-md bg-muted px-1.5 align-baseline text-[0.78em] font-medium text-muted-foreground">
+        <BookOpen className="size-3" /> {shortDoc(doc)} #{id.split("#")[1]}
+      </span>
+    )
+  }
   if (!passage) {
     // Should not survive verification; if it does, say so rather than hide it.
     return (
@@ -113,21 +124,23 @@ function shortDoc(doc: string) {
   return m ? m[0] : doc.split(" ").slice(0, 2).join(" ")
 }
 
-export function AnswerBody({ text, evidence, onCite }: {
+export function AnswerBody({ text, evidence, onCite, pending }: {
   text: string
   evidence: Passage[]
   onCite?: (id: string) => void
+  /** streaming: citations are not yet checked */
+  pending?: boolean
 }) {
   const byId = useMemo(() => new Map(evidence.map((p) => [p.id, p])), [evidence])
   const components: Partial<Components> = useMemo(() => ({
     a({ href, children, ...rest }) {
       if (href?.startsWith("#cite=")) {
         const id = decodeURIComponent(href.slice(6))
-        return <CitationPill id={id} passage={byId.get(id)} onOpen={onCite} />
+        return <CitationPill id={id} passage={byId.get(id)} onOpen={onCite} pending={pending} />
       }
       return <a href={href} target="_blank" rel="noreferrer" {...rest}>{children}</a>
     },
-  }), [byId, onCite])
+  }), [byId, onCite, pending])
   const linked = useMemo(() => linkCitations(text), [text])
   return <Markdown className="prose-answer" components={components}>{linked}</Markdown>
 }
@@ -136,7 +149,7 @@ export function AnswerBody({ text, evidence, onCite }: {
 // None of the reference products shows why an answer should be trusted. Every
 // line here comes from a check the backend actually ran.
 
-const FAILURE: Record<string, string> = {
+export const FAILURE: Record<string, string> = {
   uncited: "No citation backs this answer.",
   "invented-citation": "A citation does not match anything retrieved.",
   "fabricated-output": "Reported program output the sandbox never printed.",

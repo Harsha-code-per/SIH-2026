@@ -79,7 +79,10 @@ shadcn/ui and prompt-kit on Vite. Findings from studying the three live are in
   conversation), both themes (native controls follow the app theme), unnamed
   controls swept, zero requests to any host but the workbench on every view,
   demo playbook click paths rewritten, clean clone builds and passes
-- [ ] **G. Streaming** — token and thinking streams, visible revision on repair
+- [x] **G. Streaming** — the answer streams in as it is written and the
+  model's reasoning streams into the Inspector; an answer that fails its checks
+  is visibly withdrawn ("Revising — a citation does not match anything
+  retrieved") before its replacement arrives
 
 **Transitional state:** Knowledge, Users, Models and Audit are placeholder
 pages until phase E; citations render as raw `[Doc.md#7]` until phase D.

@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { AlertTriangle, Check, Copy, FileText, ListTree } from "lucide-react"
+import { AlertTriangle, Check, Copy, FileText, ListTree, RefreshCw } from "lucide-react"
 import { Steps, StepsContent, StepsItem, StepsTrigger } from "@/components/prompt-kit/steps"
 import { TextShimmer } from "@/components/prompt-kit/text-shimmer"
 import { Button } from "@/components/ui/button"
@@ -8,7 +8,7 @@ import { currentActivity, describe, summarise } from "@/lib/steps"
 import type { Step, Turn } from "@/lib/types"
 import type { LiveTurn } from "@/hooks/use-thread"
 import { cn } from "@/lib/utils"
-import { AnswerBody, RouteChip, Seal } from "./answer"
+import { AnswerBody, FAILURE, RouteChip, Seal } from "./answer"
 import { FileCard } from "./inspector"
 
 export function UserBubble({ text, attachment }: { text: string; attachment?: string | null }) {
@@ -30,10 +30,12 @@ export function UserBubble({ text, attachment }: { text: string; attachment?: st
 
 /** Claude's pattern: one quiet line that says what was done, expanding into
  *  the steps. The Inspector holds the full detail. */
-export function Activity({ steps, onOpen, live = false }: {
+export function Activity({ steps, onOpen, live = false, thinking = false }: {
   steps: Step[]
   onOpen?: () => void
   live?: boolean
+  /** the model is reasoning right now; the reasoning itself is in the Inspector */
+  thinking?: boolean
 }) {
   const visible = steps.filter((s) => s.kind === "tool" || s.kind === "route"
     || s.kind === "verify" || s.kind === "escalate" || s.kind === "retry" || s.kind === "error")
@@ -42,7 +44,7 @@ export function Activity({ steps, onOpen, live = false }: {
     <Steps defaultOpen={false} className="mb-2">
       <StepsTrigger leftIcon={<ListTree className="size-4" />}
                     className="text-[13px] text-muted-foreground hover:text-foreground">
-        {live ? <TextShimmer>{currentActivity(steps)}</TextShimmer> : summarise(steps)}
+        {live ? <TextShimmer>{thinking ? "Thinking…" : currentActivity(steps)}</TextShimmer> : summarise(steps)}
       </StepsTrigger>
       <StepsContent>
         <div className="space-y-1.5">
@@ -134,5 +136,22 @@ export function LiveAssistant({ live }: { live: LiveTurn }) {
       </div>
     )
   }
-  return <Activity steps={live.steps} live />
+  return (
+    <div>
+      <Activity steps={live.steps} live thinking={live.thinkingNow} />
+      {live.revision && (
+        // The others quietly swap a bad answer for a better one. Here the
+        // withdrawal is shown, because it is the proof the checks are real.
+        <div className="mb-2 flex items-start gap-2 text-[13px] text-warn">
+          <RefreshCw className="mt-0.5 size-3.5 shrink-0" />
+          <span><span className="font-medium">Revising.</span> {FAILURE[live.revision] ?? live.revision}</span>
+        </div>
+      )}
+      {live.text && (
+        <div className="streaming">
+          <AnswerBody text={live.text} evidence={[]} pending />
+        </div>
+      )}
+    </div>
+  )
 }

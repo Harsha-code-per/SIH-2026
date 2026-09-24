@@ -25,6 +25,8 @@ export interface InspectorSubject {
   evidence: Passage[]
   deliverables: Deliverable[]
   live: boolean
+  /** the model's reasoning, streamed while live */
+  thinking?: string
 }
 
 export function Inspector({ subject, tab, setTab, onClose, highlight }: {
@@ -168,7 +170,18 @@ function ActivityTab({ subject }: { subject: InspectorSubject }) {
               <span className="relative z-10 grid size-6 shrink-0 place-items-center rounded-full border bg-sidebar text-brand">
                 <Loader2 className="size-3.5 animate-spin" />
               </span>
-              <span className="pt-0.5 text-[13px] text-muted-foreground">Working…</span>
+              <div className="min-w-0 flex-1 pt-0.5 text-[13px]">
+                <div className="text-muted-foreground">{subject.thinking ? "Thinking" : "Working…"}</div>
+                {subject.thinking && (
+                  // column-reverse keeps the newest reasoning in view without
+                  // scrolling code; only the tail matters while it arrives.
+                  <div className="mt-1.5 flex max-h-48 flex-col-reverse overflow-auto rounded-md bg-muted/60 p-2">
+                    <p className="whitespace-pre-wrap text-xs leading-relaxed text-muted-foreground">
+                      {subject.thinking.slice(-2000)}
+                    </p>
+                  </div>
+                )}
+              </div>
             </li>
           )}
         </ol>

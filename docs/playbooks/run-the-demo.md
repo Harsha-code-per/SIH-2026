@@ -10,7 +10,7 @@ Do these the day of, not the week before.
 ```bash
 git pull && make up                   # current code, contained stack
 make verify-models                    # every model id still resolves
-make test                             # 124 passing
+make test                             # 131 passing
 make prove                            # no default route; tripwire blocked
 ```
 

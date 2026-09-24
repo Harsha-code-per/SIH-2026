@@ -224,6 +224,24 @@ sent as a header. Never put a token in a URL (D-47).
 | GET | `/api/audit` | read_audit | recent audit entries |
 | GET/POST/DELETE | `/api/users…` | manage_users | account administration |
 
+### Events on the `/api/run` stream
+
+Each is one `data: {json}` line with a `type`:
+
+| `type` | Carries | Notes |
+|---|---|---|
+| `conversation` | `id` | first, so a new conversation gets its address mid-run |
+| `step` | `n`, `kind`, `label`, `detail` | route, tool, result, verify, escalate, retry, done; audited and saved |
+| `thinking` | `text` | the model's reasoning as it arrives; shown in the Inspector, not saved |
+| `token` | `text` | answer text as it arrives |
+| `answer_reset` | `reason` | streamed text is withdrawn. With a reason (a failed check such as `invented-citation`) the interface shows *Revising*; empty means it was narration before a tool call |
+| `final` | answer, evidence, deliverables, decision, verdict, steps, title | the verified answer; replaces whatever streamed |
+| `error` | `error` | the run failed |
+
+The tokens after the last `answer_reset` are the final answer before citation
+normalisation (`tests/test_streaming.py`). Verification still runs on the
+assembled reply, so streaming changes what is seen, never what is checked.
+
 
 ## Data on disk
 

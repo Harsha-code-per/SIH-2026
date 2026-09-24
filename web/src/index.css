@@ -239,3 +239,17 @@
 .prose-passage th, .prose-passage td { border-bottom: 1px solid var(--border); padding: 0.3em 0.5em; text-align: left; vertical-align: top; }
 .prose-passage th { color: var(--muted-foreground); font-weight: 600; white-space: nowrap; }
 .prose-passage ul, .prose-passage ol { padding-left: 1.2em; list-style: disc; }
+
+/* A caret at the end of an answer while it streams. */
+.streaming .prose-answer > :last-child::after {
+  content: "";
+  display: inline-block;
+  width: 0.45em;
+  height: 1em;
+  margin-left: 2px;
+  vertical-align: -0.12em;
+  border-radius: 1px;
+  background: var(--brand);
+  animation: caret 1s steps(2, start) infinite;
+}
+@keyframes caret { to { visibility: hidden; } }

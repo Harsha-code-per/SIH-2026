@@ -6,6 +6,14 @@ export interface LiveTurn {
   prompt: string
   attachment: string | null
   steps: Step[]
+  /** answer text streamed so far */
+  text: string
+  /** the model's reasoning streamed so far; shown in the Inspector, not kept */
+  thinking: string
+  /** why the last answer was withdrawn, while its replacement streams */
+  revision: string | null
+  /** true while the latest thing to arrive was reasoning */
+  thinkingNow: boolean
   status: "running" | "error"
   error?: string
   startedAt: number
@@ -58,7 +66,8 @@ export function useThread(conversationId: string | null, callbacks: {
     abort.current?.abort()
     const ctrl = new AbortController()
     abort.current = ctrl
-    setLive({ prompt, attachment, steps: [], status: "running", startedAt: Date.now() })
+    setLive({ prompt, attachment, steps: [], text: "", thinking: "", revision: null, thinkingNow: false,
+              status: "running", startedAt: Date.now() })
 
     const form = new FormData()
     form.set("prompt", prompt)
@@ -75,7 +84,13 @@ export function useThread(conversationId: string | null, callbacks: {
           }
         } else if (e.type === "step") {
           const { type: _t, ...step } = e
-          setLive((l) => l && { ...l, steps: [...l.steps, step] })
+          setLive((l) => l && { ...l, steps: [...l.steps, step], thinkingNow: false })
+        } else if (e.type === "token") {
+          setLive((l) => l && { ...l, text: l.text + e.text, thinkingNow: false })
+        } else if (e.type === "thinking") {
+          setLive((l) => l && { ...l, thinking: l.thinking + e.text, thinkingNow: true })
+        } else if (e.type === "answer_reset") {
+          setLive((l) => l && { ...l, text: "", revision: e.reason || l.revision })
         } else if (e.type === "final") {
           setTurns((t) => [...t, {
             prompt, attachment, answer: e.answer, evidence: e.evidence,

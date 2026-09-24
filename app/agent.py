@@ -172,10 +172,14 @@ def normalise_citations(text: str) -> str:
 
 class Agent:
     def __init__(self, router: Router, llm: LLM,
-                 on_step: Callable[[Step], None] | None = None):
+                 on_step: Callable[[Step], None] | None = None,
+                 on_delta: Callable[[str, str], None] | None = None):
         self.router = router
         self.llm = llm
         self.on_step = on_step or (lambda s: None)
+        # Streamed text: ("token" | "thinking", text), or ("reset", why) when
+        # text already shown is superseded. None means do not stream at all.
+        self.on_delta = on_delta
         self.steps: list[Step] = []
 
     def _emit(self, kind: str, label: str, /, **detail) -> Step:
@@ -256,6 +260,7 @@ class Agent:
             if up:
                 self._emit("escalate", f"{decision.tier} → {up.tier}",
                            reason=result["verdict"], model=up.model_name)
+                self._reset(result["verdict"])
                 result = await self._converse(prompt, up, note=note)
                 decision = up
             elif result["verdict"] in REPAIRABLE:
@@ -265,6 +270,7 @@ class Agent:
                 # sourcing was not.
                 self._emit("retry", f"repairing: {result['verdict']}",
                            hint=REPAIRABLE[result["verdict"]][:80])
+                self._reset(result["verdict"])
                 repaired = await self._converse(
                     prompt, decision, repair=REPAIRABLE[result["verdict"]], note=note)
                 if repaired["verdict"] == "ok" or not result["deliverables"]:
@@ -276,6 +282,13 @@ class Agent:
                 "evidence": result["evidence"],
                 "deliverables": result["deliverables"],
                 "verdict": result["verdict"]}
+
+    def _reset(self, why: str) -> None:
+        """Withdraw streamed text. With a reason, the interface says why the
+        answer is being revised; the others hide it, this shows the checks
+        are real. Without one it is interim narration, quietly cleared."""
+        if self.on_delta:
+            self.on_delta("reset", why)
 
     async def _converse(self, prompt: str, decision: Decision,
                         repair: str | None = None, note: str | None = None) -> dict:
@@ -321,7 +334,8 @@ class Agent:
             r = await self.llm.chat(
                 decision.model_name, messages,
                 tools=None if force_text else T.schemas(offered),
-                max_tokens=budget, fallback=up.model_name if up else None)
+                max_tokens=budget, fallback=up.model_name if up else None,
+                on_delta=self.on_delta)
             if self.llm.last_fallback:
                 was, now = self.llm.last_fallback
                 self._emit("escalate", f"{was} unavailable → {now}",
@@ -352,6 +366,11 @@ class Agent:
                         "verdict": self._verify(answer, evidence, deliverables, stdouts,
                                                 searched, retrieval_broken,
                                                 sandbox_runs, sandbox_ok)}
+
+            # "Let me search the SOP" before a tool call streamed out as if it
+            # were the answer; it was narration, and the answer comes later.
+            if (msg.content or "").strip():
+                self._reset("")
 
             messages.append({
                 "role": "assistant", "content": msg.content or "",

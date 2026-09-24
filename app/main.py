@@ -273,7 +273,10 @@ async def run(prompt: str = Form(...), has_image: bool = Form(False),
         # Going through call_soon_threadsafe would schedule them *after* the
         # sentinel that drive() puts in synchronously, and a fast run would
         # stream its result with no visible trace at all.
-        agent = Agent(router, LLM(router), on_step=q.put_nowait)
+        agent = Agent(router, LLM(router), on_step=q.put_nowait,
+                      on_delta=lambda kind, text: q.put_nowait(
+                          {"type": {"reset": "answer_reset"}.get(kind, kind),
+                           "text" if kind != "reset" else "reason": text}))
 
         async def drive():
             try:
@@ -289,6 +292,11 @@ async def run(prompt: str = Form(...), has_image: bool = Form(False),
             item = await q.get()
             if item is None:
                 break
+            if isinstance(item, dict):
+                # Streamed text. Not audited or saved: the final answer is,
+                # and the tokens are only its arrival.
+                yield f"data: {json.dumps(item)}\n\n"
+                continue
             steps.append(item.as_dict())
             d = item.as_dict()
             audit.record(f"step.{d.pop('kind')}", **d)

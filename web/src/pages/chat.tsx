@@ -76,7 +76,10 @@ export function ChatPage() {
 
   const subject: InspectorSubject | null = useMemo(() => {
     if (thread.live && selected === null) {
-      return { steps: thread.live.steps, evidence: [], deliverables: [], live: true }
+      // An errored run is over: the Inspector must stop saying "Working".
+      return { steps: thread.live.steps, evidence: [], deliverables: [],
+               live: thread.live.status === "running",
+               thinking: thread.live.thinking }
     }
     const t = thread.turns[selected ?? thread.turns.length - 1]
     return t ? { steps: t.steps, decision: t.decision, evidence: t.evidence,

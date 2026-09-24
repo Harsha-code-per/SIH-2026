@@ -9,7 +9,8 @@ from __future__ import annotations
 import asyncio
 import os
 from pathlib import Path
-from typing import Any
+from types import SimpleNamespace as NS
+from typing import Any, Callable
 
 from openai import AsyncOpenAI
 
@@ -26,6 +27,44 @@ def load_dotenv(path: Path | str = ".env") -> None:
         if line and not line.startswith("#") and "=" in line:
             k, v = line.split("=", 1)
             os.environ.setdefault(k.strip(), v.strip())
+
+
+async def collect(stream, on_delta: Callable[[str, str], None]) -> Any:
+    """Drain a streamed completion into the shape `create()` returns without
+    streaming: choices[0].message.content / .tool_calls, and finish_reason.
+
+    Tool calls arrive as fragments keyed by index -- the id and name in one
+    chunk, the arguments spread over many -- and are only usable once joined.
+    """
+    content: list[str] = []
+    calls: dict[int, dict] = {}
+    finish = None
+    async for chunk in stream:
+        if not chunk.choices:
+            continue
+        choice = chunk.choices[0]
+        d = choice.delta
+        # Reasoning models on NIM stream their thinking in a field the SDK does
+        # not declare; Ollama and vLLM use `reasoning`.
+        extra = getattr(d, "model_extra", None) or {}
+        thinking = extra.get("reasoning_content") or extra.get("reasoning")
+        if thinking:
+            on_delta("thinking", thinking)
+        if d.content:
+            content.append(d.content)
+            on_delta("token", d.content)
+        for tc in d.tool_calls or []:
+            slot = calls.setdefault(tc.index, {"id": None, "name": "", "arguments": ""})
+            slot["id"] = tc.id or slot["id"]
+            if tc.function:
+                slot["name"] += tc.function.name or ""
+                slot["arguments"] += tc.function.arguments or ""
+        finish = choice.finish_reason or finish
+    tool_calls = [NS(id=c["id"] or f"call_{i}", type="function",
+                     function=NS(name=c["name"], arguments=c["arguments"] or "{}"))
+                  for i, c in sorted(calls.items())]
+    return NS(choices=[NS(finish_reason=finish, message=NS(
+        content="".join(content), tool_calls=tool_calls or None))])
 
 
 class LLM:
@@ -49,7 +88,8 @@ class LLM:
                    tools: list[dict] | None = None,
                    temperature: float = 0.2,
                    max_tokens: int = 1536,
-                   fallback: str | None = None) -> Any:
+                   fallback: str | None = None,
+                   on_delta: Callable[[str, str], None] | None = None) -> Any:
         """Call a model, surviving a saturated shared endpoint.
 
         Hosted inference is someone else's capacity, and a 503 halfway through
@@ -57,25 +97,50 @@ class LLM:
         bounded and a fallback model is tried once before giving up, so a busy
         worker degrades the answer rather than ending the run. On-premise this
         matters far less, which is rather the point.
+
+        With `on_delta`, the reply is streamed: each piece of answer text is
+        passed on as ("token", text) and each piece of the model's reasoning
+        as ("thinking", text), while the whole reply is still assembled and
+        returned in the same shape as a non-streamed one -- so everything
+        downstream, verification included, is unchanged. A retry after text
+        has gone out first sends ("reset", why), so nothing is shown twice.
         """
         kw: dict[str, Any] = dict(model=model, messages=messages,
                                   temperature=temperature, max_tokens=max_tokens)
         if tools:
             kw |= {"tools": tools, "tool_choice": "auto"}
+        if on_delta:
+            kw["stream"] = True
+        sent = False                      # has any delta reached the caller?
+
+        def relay(kind: str, text: str) -> None:
+            nonlocal sent
+            sent = True
+            on_delta(kind, text)  # type: ignore[misc]
 
         last: Exception | None = None
         for candidate in [model] + ([fallback] if fallback and fallback != model else []):
             kw["model"] = candidate
             for attempt in range(3):
                 try:
+                    if sent:
+                        on_delta("reset", "the endpoint dropped the reply; retrying")  # type: ignore[misc]
+                        sent = False
                     r = await self.client.chat.completions.create(**kw)
+                    if on_delta:
+                        r = await collect(r, relay)
                     if candidate != model:
                         self.last_fallback = (model, candidate)
                     return r
                 except Exception as e:
                     last = e
-                    retryable = any(c in f"{e}" for c in ("503", "429", "500", "502", "504",
-                                                          "ResourceExhausted", "Timeout"))
+                    # Streamed, a saturated worker reports inside the stream
+                    # as "Service temporarily overloaded" with no status code
+                    # in the message, so the code is checked where it exists.
+                    retryable = getattr(e, "status_code", None) in (429, 500, 502, 503, 504) \
+                        or any(c in f"{e}" for c in ("503", "429", "500", "502", "504",
+                                                     "ResourceExhausted", "Timeout",
+                                                     "overloaded"))
                     if not retryable:
                         break
                     await asyncio.sleep(1.5 * (attempt + 1))
