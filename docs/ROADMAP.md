@@ -51,6 +51,26 @@ Found by running the demo rather than reading the code.
 
 ---
 
+## Phase 2b — Interface redesign `IN PROGRESS`
+
+Rebuilding the interface in the shape of Claude, ChatGPT and Gemini — history
+sidebar, conversation in the centre, reasoning in a right-hand Inspector — with
+shadcn/ui and prompt-kit on Vite. Findings from studying the three live are in
+`docs/ui/REFERENCE.md`.
+
+- [x] **A. Backend** — owned, persistent conversations; scoped and gated API;
+  SPA fallback; deliverable outline; no tokens in URLs
+- [ ] **B. Scaffold** — `web/` with Vite, Tailwind v4, shadcn, prompt-kit; multi-stage build
+- [ ] **C. Shell** — sign-in, sidebar with history, thread, composer, Inspector
+- [ ] **D. AI rendering** — markdown, reasoning summary, citations, verification seal, file cards
+- [ ] **E. Views** — Knowledge, Models, Audit, Users, Settings, ⌘K, slash commands
+- [ ] **F. Verify** — responsive, both themes, accessibility, side-by-side with references
+- [ ] **G. Streaming** — token and thinking streams, visible revision on repair
+
+**Transitional state:** until phase C lands, the old interface's containment
+panel and download links return 401 — both are now header-authenticated and the
+old page used `EventSource` and plain links. Use the API or `make prove`.
+
 ## Phase 3 — Demo completion `IN PROGRESS · due 30 Sept`
 
 What still stands between the current build and a submission.
@@ -138,10 +158,9 @@ remove and re-index from the interface.
 The problem statement names photographs alongside drawings. `describe_image`
 handles image files, but no photograph fixture or accuracy measurement exists.
 
-### F6. Persistent conversation history `[ ]`
-Conversations are in memory and bounded (`app/sessions.py`). Across restarts
-they are lost; the audit log is the durable record. A per-user history view
-needs them on disk.
+### F6. Persistent conversation history `[x]`
+Done early as phase A of the interface redesign: owned, persisted per user,
+scoped in the store (D-46).
 
 ### F7. Streaming model output `[ ]`
 Steps stream today; the final answer arrives whole. Token streaming makes the

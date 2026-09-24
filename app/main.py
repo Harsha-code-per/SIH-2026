@@ -18,7 +18,7 @@ from fastapi.staticfiles import StaticFiles
 from . import audit
 from .agent import Agent
 from .auth import ROLES, USERS, User
-from .sessions import SESSIONS, Turn
+from .sessions import CONVERSATIONS, Turn
 from .egress import EgressMonitor
 from .kb import KB
 from .llm import LLM, load_dotenv
@@ -181,7 +181,8 @@ async def reload_registry(user: User = Depends(needs("manage_models"))):
 
 
 @app.post("/api/route")
-async def preview_route(prompt: str = Form(...), has_image: bool = Form(False)):
+async def preview_route(prompt: str = Form(...), has_image: bool = Form(False),
+                        user: User = Depends(current_user)):
     """Routing decision without executing it -- used by the UI's router panel."""
     return router.route(prompt, has_image=has_image).as_dict()
 
@@ -195,8 +196,13 @@ async def tripwire(target: str = Form("https://api.openai.com/v1/models"),
 
 
 @app.get("/api/egress/stream")
-async def egress_stream():
-    """Live tail of observed outbound traffic."""
+async def egress_stream(user: User = Depends(current_user)):
+    """Live tail of observed outbound traffic.
+
+    Authenticated by header like everything else. EventSource cannot send
+    headers, and a token in the query string would be written to the access
+    log, so the interface reads this with fetch() instead.
+    """
     q: asyncio.Queue = asyncio.Queue(maxsize=100)
     monitor.subscribers.add(q)
 
@@ -219,7 +225,7 @@ async def egress_stream():
 
 @app.post("/api/run")
 async def run(prompt: str = Form(...), has_image: bool = Form(False),
-              attachment: str = Form(""), session: str = Form(""),
+              attachment: str = Form(""), conversation: str = Form(""),
               user: User = Depends(needs("run"))):
     """Execute a task, streaming every step as it happens.
 
@@ -228,12 +234,14 @@ async def run(prompt: str = Form(...), has_image: bool = Form(False),
     just the conclusion.
     """
     q: asyncio.Queue = asyncio.Queue()
-    sess = SESSIONS.get(session or None)
+    # An id belonging to someone else resolves to a fresh conversation rather
+    # than an error, so the endpoint never confirms that the id exists.
+    conv = CONVERSATIONS.get_or_create(user.username, conversation or None)
     # A follow-up about an attached report should not need it re-attached.
-    carried = attachment or sess.carried_attachment() or ""
+    carried = attachment or conv.carried_attachment() or ""
     audit.record("task.received", user=user.username, prompt=prompt[:500],
-                 mode=MODE, attachment=carried or None, session=sess.id,
-                 turn=len(sess.turns) + 1)
+                 mode=MODE, attachment=carried or None, conversation=conv.id,
+                 turn=len(conv.turns) + 1)
 
     # The attachment is passed through separately rather than pasted into the
     # prompt. Appending guidance text to the prompt fed words like "drawing"
@@ -249,15 +257,18 @@ async def run(prompt: str = Form(...), has_image: bool = Form(False),
         async def drive():
             try:
                 return await agent.run(prompt, attachment=carried or None,
-                                       history=sess.history())
+                                       history=conv.history())
             finally:
                 q.put_nowait(None)
 
         task = asyncio.create_task(drive())
+        steps: list[dict] = []
+        yield f"data: {json.dumps({'type': 'conversation', 'id': conv.id})}\n\n"
         while True:
             item = await q.get()
             if item is None:
                 break
+            steps.append(item.as_dict())
             d = item.as_dict()
             audit.record(f"step.{d.pop('kind')}", **d)
             yield f"data: {json.dumps({'type': 'step', **item.as_dict()}, default=str)}\n\n"
@@ -267,15 +278,17 @@ async def run(prompt: str = Form(...), has_image: bool = Form(False),
             audit.record("task.failed", error=f"{type(e).__name__}: {e}")
             yield f"data: {json.dumps({'type': 'error', 'error': f'{type(e).__name__}: {e}'})}\n\n"
             return
-        sess.add(Turn(prompt=prompt, answer=final.get("answer", ""),
-                      evidence=final.get("evidence", []),
-                      deliverables=final.get("deliverables", []),
-                      attachment=carried or None))
+        conv_after = CONVERSATIONS.add_turn(user.username, conv.id, Turn(
+            prompt=prompt, answer=final.get("answer", ""),
+            evidence=final.get("evidence", []),
+            deliverables=final.get("deliverables", []),
+            attachment=carried or None, decision=final.get("decision", {}),
+            steps=steps, verdict=final.get("verdict")))
         audit.record("task.completed", user=user.username,
                      verdict=final.get("verdict"),
-                     model=final["decision"].get("model_name"), session=sess.id,
+                     model=final["decision"].get("model_name"), conversation=conv.id,
                      deliverables=[d["path"] for d in final["deliverables"]])
-        yield f"data: {json.dumps({'type': 'final', 'session': sess.id, **final}, default=str)}\n\n"
+        yield f"data: {json.dumps({'type': 'final', 'conversation': conv.id, 'title': conv_after.title, **final}, default=str)}\n\n"
 
     return StreamingResponse(gen(), media_type="text/event-stream",
                              headers={"Cache-Control": "no-cache",
@@ -290,14 +303,14 @@ async def kb_build(user: User = Depends(needs("manage_kb"))):
 
 
 @app.get("/api/kb/search")
-async def kb_search(q: str, k: int = 6):
+async def kb_search(q: str, k: int = 6, user: User = Depends(needs("read_kb"))):
     if KB.vectors is None:
         KB.load()
     return {"query": q, "passages": KB.search(q, k=k)}
 
 
 @app.get("/api/kb/documents")
-async def kb_documents():
+async def kb_documents(user: User = Depends(needs("read_kb"))):
     if KB.vectors is None:
         KB.load()
     docs: dict[str, int] = {}
@@ -307,19 +320,39 @@ async def kb_documents():
             "documents": [{"name": d, "chunks": n} for d, n in sorted(docs.items())]}
 
 
-@app.get("/api/sessions")
-async def sessions():
-    return {"sessions": SESSIONS.all()}
+# ---------------------------------------------------------------------------
+# Conversations. Every call is scoped to the signed-in user by the store itself;
+# another user's conversation is a 404, never a 403, so an id is never
+# confirmed to exist.
+# ---------------------------------------------------------------------------
+@app.get("/api/conversations")
+async def list_conversations(user: User = Depends(current_user)):
+    return {"conversations": CONVERSATIONS.list(user.username)}
 
 
-@app.post("/api/sessions/new")
-async def new_session():
-    return {"session": SESSIONS.get(None).id}
+@app.get("/api/conversations/{cid}")
+async def get_conversation(cid: str, user: User = Depends(current_user)):
+    c = CONVERSATIONS.get(user.username, cid)
+    if not c:
+        raise HTTPException(status_code=404, detail="no such conversation")
+    return c.full()
 
 
-@app.post("/api/sessions/{sid}/clear")
-async def clear_session(sid: str):
-    return {"dropped": SESSIONS.drop(sid)}
+@app.patch("/api/conversations/{cid}")
+async def rename_conversation(cid: str, title: str = Form(...),
+                              user: User = Depends(current_user)):
+    c = CONVERSATIONS.rename(user.username, cid, title)
+    if not c:
+        raise HTTPException(status_code=404, detail="no such conversation")
+    return c.summary()
+
+
+@app.delete("/api/conversations/{cid}")
+async def delete_conversation(cid: str, user: User = Depends(current_user)):
+    if not CONVERSATIONS.delete(user.username, cid):
+        raise HTTPException(status_code=404, detail="no such conversation")
+    audit.record("conversation.deleted", user=user.username, conversation=cid)
+    return {"ok": True}
 
 
 @app.get("/api/audit")
@@ -348,11 +381,61 @@ async def upload(file: UploadFile = File(...),
 
 
 @app.get("/api/download/{name}")
-async def download(name: str):
+async def download(name: str, user: User = Depends(current_user)):
     p = OUT / Path(name).name
     if not p.exists():
         return JSONResponse({"error": "not found"}, status_code=404)
     return FileResponse(p, filename=p.name)
 
 
-app.mount("/", StaticFiles(directory=ROOT / "static", html=True), name="static")
+@app.get("/api/files/{name}/outline")
+async def file_outline(name: str, user: User = Depends(current_user)):
+    """What a deliverable contains, for the file card: its headings, the
+    citations it carries, and its size -- read from the file itself, the same
+    way verification reads it back."""
+    from .agent import cited_ids
+    p = OUT / Path(name).name
+    if not p.exists():
+        raise HTTPException(status_code=404, detail="no such file")
+    out: dict = {"name": p.name, "bytes": p.stat().st_size,
+                 "kind": p.suffix.lstrip(".").lower()}
+    if p.suffix.lower() == ".docx":
+        from docx import Document
+        doc = Document(p)
+        text = "\n".join([x.text for x in doc.paragraphs] +
+                         [c.text for t in doc.tables for r in t.rows for c in r.cells])
+        out |= {"title": next((x.text for x in doc.paragraphs
+                               if x.style.name == "Title" and x.text.strip()), p.stem),
+                "headings": [x.text for x in doc.paragraphs
+                             if x.style.name.startswith("Heading") and x.text.strip()],
+                "tables": len(doc.tables),
+                "citations": sorted(cited_ids(text))}
+    elif p.suffix.lower() == ".xlsx":
+        from openpyxl import load_workbook
+        wb = load_workbook(p, read_only=True)
+        out |= {"sheets": [{"name": ws.title, "rows": ws.max_row,
+                            "columns": ws.max_column} for ws in wb.worksheets]}
+    return out
+
+
+class SPA(StaticFiles):
+    """Serve the built interface, falling back to index.html.
+
+    The interface routes on the client -- /c/<conversation> is a real address a
+    user can bookmark or reload -- so an unknown path that is not an API call
+    must return the app rather than a 404.
+    """
+    async def get_response(self, path: str, scope):
+        # Starlette's exception, not FastAPI's: StaticFiles raises the base
+        # class, and FastAPI's HTTPException is a subclass of it, so catching
+        # FastAPI's would let every 404 through and the fallback never fire.
+        from starlette.exceptions import HTTPException as StarletteHTTPException
+        try:
+            return await super().get_response(path, scope)
+        except StarletteHTTPException as e:
+            if e.status_code == 404 and not path.startswith("api/"):
+                return await super().get_response("index.html", scope)
+            raise
+
+
+app.mount("/", SPA(directory=ROOT / "static", html=True), name="static")

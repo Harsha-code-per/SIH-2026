@@ -1,22 +1,38 @@
-"""Conversation state.
+"""Conversations: persistent, and owned.
 
-A workbench that forgets everything between questions is not the tool the
-problem statement describes. An engineer asks about a reading, then asks what
-the SOP requires, then asks for it as a note -- three turns about one thing.
+A workbench that forgets between questions is not the tool the problem
+statement describes, and one that forgets between restarts cannot show a
+history sidebar. Conversations are kept on disk, one JSON file per user in
+data/conversations/.
 
-Kept in memory and bounded: this is per-workstation software, and a
-conversation that outlives the process is not worth a database. The audit log
-on disk is the durable record.
+Ownership is enforced here, in the store, rather than in each endpoint. Every
+read and write takes the owner, and a conversation that belongs to someone else
+is indistinguishable from one that does not exist. An endpoint cannot forget to
+check what it is never given the chance to skip. The previous in-memory store
+had no owner at all, and its list endpoint returned every user's history.
+
+A JSON file per user rather than a database: a handful of accounts and a few
+hundred conversations each do not justify a second thing to deploy, back up and
+air-gap. ponytail: whole-file rewrite per turn; move to SQLite if a user's file
+passes a few megabytes.
 """
 from __future__ import annotations
 
+import json
+import os
+import re
+import threading
 import time
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
+from pathlib import Path
 
-MAX_TURNS = 12          # per conversation, oldest dropped first
-MAX_SESSIONS = 50       # least recently used dropped first
-IDLE_SECONDS = 4 * 3600
+ROOT = Path(__file__).resolve().parent.parent
+STORE = ROOT / "data" / "conversations"
+
+CONTEXT_TURNS = 12      # replayed to the model; older turns stay visible, not sent
+MAX_TURNS = 200         # kept per conversation, so one file cannot grow without bound
+TITLE_CHARS = 60
 
 
 @dataclass
@@ -26,78 +42,153 @@ class Turn:
     evidence: list[dict] = field(default_factory=list)
     deliverables: list[dict] = field(default_factory=list)
     attachment: str | None = None
+    decision: dict = field(default_factory=dict)
+    steps: list[dict] = field(default_factory=list)
+    verdict: str | None = None
     ts: float = field(default_factory=time.time)
 
 
 @dataclass
-class Session:
+class Conversation:
     id: str
+    owner: str
+    title: str = "New conversation"
+    created: float = field(default_factory=time.time)
+    updated: float = field(default_factory=time.time)
     turns: list[Turn] = field(default_factory=list)
-    touched: float = field(default_factory=time.time)
 
     def add(self, turn: Turn) -> None:
+        if not self.turns:
+            self.title = make_title(turn.prompt)
         self.turns.append(turn)
         del self.turns[:-MAX_TURNS]
-        self.touched = time.time()
+        self.updated = time.time()
 
     def history(self) -> list[dict]:
-        """Prior turns as chat messages.
+        """Recent turns as chat messages.
 
-        Only the question and the answer. Replaying tool calls would refill the
-        context with retrieved passages the model has already used, and the
-        citations in the answer already say where they came from.
+        Only question and answer. Replaying tool calls would refill the context
+        with passages the model has already used, and the citations in the
+        answer say where they came from. Bounded, so a long conversation does
+        not outgrow the context window.
         """
         out: list[dict] = []
-        for t in self.turns:
+        for t in self.turns[-CONTEXT_TURNS:]:
             out.append({"role": "user", "content": t.prompt})
             if t.answer:
                 out.append({"role": "assistant", "content": t.answer})
         return out
 
     def carried_attachment(self) -> str | None:
-        """The most recent attachment, so "and the temperature?" still knows
-        which report is being discussed."""
+        """The latest attachment, so "and the temperature?" still knows which
+        report is being discussed."""
         for t in reversed(self.turns):
             if t.attachment:
                 return t.attachment
         return None
 
-    def as_dict(self) -> dict:
-        return {"id": self.id, "turns": len(self.turns), "touched": self.touched,
-                "preview": self.turns[0].prompt[:80] if self.turns else ""}
+    def summary(self) -> dict:
+        return {"id": self.id, "title": self.title, "created": self.created,
+                "updated": self.updated, "turns": len(self.turns)}
+
+    def full(self) -> dict:
+        return self.summary() | {"turns": [asdict(t) for t in self.turns]}
 
 
-class Sessions:
-    def __init__(self) -> None:
-        self._s: dict[str, Session] = {}
-
-    def get(self, sid: str | None) -> Session:
-        if sid and sid in self._s:
-            s = self._s[sid]
-            s.touched = time.time()
-            self._evict()
-            return s
-        s = Session(id=sid or uuid.uuid4().hex[:12])
-        self._s[s.id] = s
-        # Evicted after inserting, or the cap is exceeded by the new arrival.
-        self._evict()
-        return s
-
-    def _evict(self) -> None:
-        now = time.time()
-        for sid, s in list(self._s.items()):
-            if now - s.touched > IDLE_SECONDS:
-                del self._s[sid]
-        while len(self._s) > MAX_SESSIONS:
-            oldest = min(self._s, key=lambda k: self._s[k].touched)
-            del self._s[oldest]
-
-    def all(self) -> list[dict]:
-        return [s.as_dict() for s in
-                sorted(self._s.values(), key=lambda s: -s.touched)]
-
-    def drop(self, sid: str) -> bool:
-        return self._s.pop(sid, None) is not None
+def make_title(prompt: str) -> str:
+    """The first prompt, cut at a word boundary."""
+    text = " ".join(prompt.split())
+    if len(text) <= TITLE_CHARS:
+        return text or "New conversation"
+    cut = text[:TITLE_CHARS].rsplit(" ", 1)[0]
+    return (cut or text[:TITLE_CHARS]) + "…"
 
 
-SESSIONS = Sessions()
+_SAFE = re.compile(r"^[a-z0-9_.-]{1,64}$")
+
+
+class Conversations:
+    def __init__(self, root: Path = STORE):
+        self.root = root
+        self._cache: dict[str, dict[str, Conversation]] = {}
+        self._lock = threading.Lock()
+
+    # -- storage ------------------------------------------------------------
+    def _path(self, owner: str) -> Path:
+        # The owner becomes a filename. Usernames are validated at creation,
+        # but this is the line that would turn a crafted one into a path
+        # traversal, so it checks again rather than trusting.
+        if not _SAFE.match(owner):
+            raise ValueError(f"unusable owner name {owner!r}")
+        return self.root / f"{owner}.json"
+
+    def _load(self, owner: str) -> dict[str, Conversation]:
+        if owner not in self._cache:
+            path = self._path(owner)
+            convs: dict[str, Conversation] = {}
+            if path.exists():
+                for raw in json.loads(path.read_text()):
+                    turns = [Turn(**t) for t in raw.pop("turns", [])]
+                    c = Conversation(**raw, turns=turns)
+                    convs[c.id] = c
+            self._cache[owner] = convs
+        return self._cache[owner]
+
+    def _save(self, owner: str) -> None:
+        path = self._path(owner)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        data = [asdict(c) for c in self._load(owner).values()]
+        tmp = path.with_suffix(".tmp")
+        tmp.write_text(json.dumps(data, default=str))
+        os.chmod(tmp, 0o600)
+        tmp.replace(path)            # atomic: a crash cannot truncate history
+
+    # -- the interface ------------------------------------------------------
+    def create(self, owner: str) -> Conversation:
+        with self._lock:
+            c = Conversation(id=uuid.uuid4().hex[:16], owner=owner)
+            self._load(owner)[c.id] = c
+            return c                 # saved on its first turn, not before
+
+    def get(self, owner: str, cid: str | None) -> Conversation | None:
+        """Someone else's conversation reads as absent, never as forbidden --
+        a distinct answer would confirm the id exists."""
+        if not cid:
+            return None
+        return self._load(owner).get(cid)
+
+    def get_or_create(self, owner: str, cid: str | None) -> Conversation:
+        return self.get(owner, cid) or self.create(owner)
+
+    def list(self, owner: str) -> list[dict]:
+        convs = [c for c in self._load(owner).values() if c.turns]
+        return [c.summary() for c in sorted(convs, key=lambda c: -c.updated)]
+
+    def add_turn(self, owner: str, cid: str, turn: Turn) -> Conversation:
+        with self._lock:
+            c = self._load(owner)[cid]
+            c.add(turn)
+            self._save(owner)
+            return c
+
+    def rename(self, owner: str, cid: str, title: str) -> Conversation | None:
+        title = " ".join(title.split())[:120]
+        with self._lock:
+            c = self.get(owner, cid)
+            if not c or not title:
+                return None
+            c.title = title
+            self._save(owner)
+            return c
+
+    def delete(self, owner: str, cid: str) -> bool:
+        with self._lock:
+            convs = self._load(owner)
+            if cid not in convs:
+                return False
+            del convs[cid]
+            self._save(owner)
+            return True
+
+
+CONVERSATIONS = Conversations()

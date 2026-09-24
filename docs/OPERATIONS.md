@@ -37,7 +37,7 @@ the embedding model into the image. After that, `make restart` takes seconds.
 | `make open` | open the interface |
 | `make prove` | show containment from inside the running app |
 | `make sovereign` | start with no gateway — nothing reachable |
-| `make test` | all 109 tests (sandbox tests need Docker) |
+| `make test` | all 113 tests (sandbox tests need Docker) |
 | `make test-v` | the same, naming each test |
 | `make secrets` | scan every tracked file for credentials |
 | `make verify-models` | check `models.yaml` against the live catalogue |

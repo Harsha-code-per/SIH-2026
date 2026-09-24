@@ -331,6 +331,35 @@ option, the check failed silently, and the script still printed "clean". Each
 check in `check-secrets.sh` has a negative control proving it fires.
 **Where:** `scripts/check-secrets.sh`.
 
+## Conversations and the interface
+
+### D-46 · Conversations are owned, persisted, and scoped in the store
+Each user's conversations live in `data/conversations/<user>.json`. Every read
+and write takes the owner; another user's conversation is indistinguishable
+from one that does not exist — a 404, never a 403, and an unknown id passed to
+`/api/run` starts a fresh conversation rather than joining one.
+**Why:** the previous store kept conversations in memory with no owner, and
+`/api/sessions` — which needed no sign-in — returned everybody's. A history
+sidebar on top of it would have shown an engineer the administrator's
+conversations. Enforcing ownership in the store means no endpoint can forget
+to check. A 403 would confirm the id exists.
+**Where:** `app/sessions.py`, `tests/test_conversations.py`.
+
+### D-47 · No tokens in URLs
+The egress stream and file downloads are header-authenticated like everything
+else, and the interface reads them with `fetch()`.
+**Why:** `EventSource` and a plain `<a download>` link cannot send headers. The
+tempting fix, a `?token=` parameter, writes the token into uvicorn's access log
+and the browser's history.
+**Where:** `app/main.py::egress_stream`, `download`.
+
+### D-48 · The SPA fallback catches Starlette's exception, not FastAPI's
+**Why:** `StaticFiles` raises `starlette.exceptions.HTTPException`, and
+FastAPI's `HTTPException` is a subclass of it — so catching FastAPI's class lets
+every 404 through and the fallback silently never fires. Deep links like
+`/c/<id>` then 404 on reload.
+**Where:** `app/main.py::SPA`.
+
 ---
 
 ## Environment facts worth knowing

@@ -148,9 +148,13 @@ roles defined as capability sets:
 | approver | + approve *(not yet used — roadmap F3)* |
 | admin | + manage_kb, manage_users, manage_models, read_audit |
 
-### `app/sessions.py` — conversation memory
-In memory, bounded (12 turns, 50 sessions, 4h idle). Replays question and
-answer only, not tool calls. Carries the most recent attachment forward.
+### `app/sessions.py` — conversations
+Persistent and owned: one JSON file per user in `data/conversations/`, written
+atomically at 0600. Ownership is enforced in the store (D-46). Each turn keeps
+what the interface needs to re-render it — answer, evidence, deliverables,
+routing decision, steps and verdict. The last 12 turns are replayed to the
+model as question and answer only; every turn stays visible. The title is the
+first prompt, cut at a word.
 
 ### `app/audit.py` — the durable record
 One JSON object per line in `data/audit.jsonl`. Readable with `grep`; no
@@ -168,7 +172,8 @@ and Models / Knowledge / Audit / Admin tabs gated by role.
 
 ## API
 
-All endpoints except `/api/login` and `/api/status` need `Authorization: Bearer <token>`.
+All endpoints except `/api/login` and `/api/status` need `Authorization: Bearer <token>`,
+sent as a header. Never put a token in a URL (D-47).
 
 | Method | Path | Capability | Purpose |
 |---|---|---|---|
@@ -177,24 +182,24 @@ All endpoints except `/api/login` and `/api/status` need `Authorization: Bearer 
 | GET | `/api/me` | signed in | current user and role table |
 | POST | `/api/me/password` | signed in | change own password |
 | GET | `/api/status` | — | mode, endpoint, models, containment |
-| POST | `/api/run` | run | execute a task; SSE stream of steps |
-| POST | `/api/route` | — | routing decision without executing |
+| POST | `/api/run` | run | execute a task in a conversation; SSE stream |
+| GET | `/api/conversations` | signed in | the caller's conversations, newest first |
+| GET | `/api/conversations/{id}` | signed in | one conversation with every turn |
+| PATCH | `/api/conversations/{id}` | signed in | rename |
+| DELETE | `/api/conversations/{id}` | signed in | delete |
+| POST | `/api/route` | signed in | routing decision without executing |
 | POST | `/api/upload` | upload | store a file in `data/uploads` |
-| GET | `/api/download/{name}` | — | fetch a deliverable |
-| GET | `/api/kb/documents` | — | indexed documents |
-| GET | `/api/kb/search` | — | hybrid retrieval |
+| GET | `/api/download/{name}` | signed in | fetch a deliverable |
+| GET | `/api/files/{name}/outline` | signed in | a deliverable's title, headings, citations |
+| GET | `/api/kb/documents` | read_kb | indexed documents |
+| GET | `/api/kb/search` | read_kb | hybrid retrieval |
 | POST | `/api/kb/build` | manage_kb | re-index |
 | POST | `/api/registry/reload` | manage_models | re-read `models.yaml` |
 | POST | `/api/tripwire` | signed in | attempt a forbidden call |
-| GET | `/api/egress/stream` | — | SSE containment events |
+| GET | `/api/egress/stream` | signed in | SSE containment events |
 | GET | `/api/audit` | read_audit | recent audit entries |
 | GET/POST/DELETE | `/api/users…` | manage_users | account administration |
-| GET/POST | `/api/sessions…` | — | conversation management |
 
-> **Known gap:** `/api/download`, `/api/kb/*`, `/api/route` and the egress
-> stream are not yet gated. Harmless on a single workstation; close them before
-> any multi-user deployment. The egress stream uses `EventSource`, which cannot
-> send headers, so it needs a token in the query string.
 
 ## Data on disk
 
@@ -206,5 +211,6 @@ All endpoints except `/api/login` and `/api/status` need `Authorization: Bearer 
 | `data/cache/` | transcription cache | no |
 | `data/kb_index.npz`, `kb_meta.json` | retrieval index | no — built on startup |
 | `data/audit.jsonl` | audit log | no |
+| `data/conversations/` | every user's conversations (0600) | **never** |
 | `data/users.json` | accounts (0600) | **never** |
 | `data/secret.key` | token signing key (0600) | **never** |
