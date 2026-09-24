@@ -4,7 +4,7 @@ import { Calculator, ClipboardCheck, Code2, FileText, PanelRight, Upload } from 
 import { ChatContainerContent, ChatContainerRoot } from "@/components/prompt-kit/chat-container"
 import { ScrollButton } from "@/components/prompt-kit/scroll-button"
 import { Button } from "@/components/ui/button"
-import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar"
+import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Composer, type Attachment } from "@/components/app/composer"
@@ -17,13 +17,13 @@ import { useIsMobile } from "@/hooks/use-mobile"
 import { useThread } from "@/hooks/use-thread"
 
 const SUGGESTIONS = [
-  { icon: ClipboardCheck, tone: "text-sky-500 bg-sky-500/12", label: "Check a reading against the SOP",
+  { icon: ClipboardCheck, label: "Check a reading against the SOP",
     prompt: "Pump P-204 drive-end vibration is 8.2 mm/s RMS. What zone is that, and what does the SOP require?" },
-  { icon: FileText, tone: "text-amber-500 bg-amber-500/12", label: "Draft an approval note",
+  { icon: FileText, label: "Draft an approval note",
     prompt: "Pump P-204 drive-end vibration is 8.2 mm/s RMS, up from 6.5 mm/s last month. Check it against the SOP and produce an approval note as a Word document." },
-  { icon: Code2, tone: "text-violet-500 bg-violet-500/12", label: "Analyse a trend in code",
+  { icon: Code2, label: "Analyse a trend in code",
     prompt: "Write and run a python script that fits a linear trend to the readings 6.5, 7.0, 7.6, 8.2 and reports the slope in mm/s per month." },
-  { icon: Calculator, tone: "text-emerald-500 bg-emerald-500/12", label: "Run a calculation",
+  { icon: Calculator, label: "Run a calculation",
     prompt: "Calculate the percentage increase from 6.5 to 8.2" },
 ]
 
@@ -40,7 +40,6 @@ export function ChatPage() {
   const { user } = useAuth()
   const { list, touch } = useConversations()
   const isMobile = useIsMobile()
-  const { open: sidebarOpen } = useSidebar()
   const [attachment, setAttachment] = useState<Attachment | null>(null)
   const [dragging, setDragging] = useState(false)
   // The reasoning lives inline in the conversation; this panel holds the
@@ -109,12 +108,15 @@ export function ChatPage() {
 
   return (
     <div className="flex h-full min-h-0">
-      <div className="aurora relative flex min-w-0 flex-1 flex-col"
+      <div className="relative flex min-w-0 flex-1 flex-col"
            onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
            onDragLeave={(e) => { if (e.currentTarget === e.target) setDragging(false) }}
            onDrop={onDrop}>
         <header className="flex h-12 shrink-0 items-center gap-2 px-3">
-          {(!sidebarOpen || isMobile) && <SidebarTrigger className="text-muted-foreground" />}
+{/* On a desktop the sidebar keeps its own toggle even when collapsed to
+              icons, so a second one here showed two identical buttons side by
+              side. Only a phone, where the sidebar is a hidden drawer, needs it. */}
+          {isMobile && <SidebarTrigger className="text-muted-foreground" />}
           <h1 className="min-w-0 truncate text-sm font-medium">{title ?? (empty ? "" : "New conversation")}</h1>
           {/* Nothing to inspect before the first turn. */}
           {!empty && <div className="ml-auto">
@@ -134,12 +136,10 @@ export function ChatPage() {
           <div className="flex flex-1 flex-col items-center justify-center px-4 pb-16">
             <div className="w-full max-w-[680px]">
               <div className="mb-8 flex flex-col items-center gap-3 text-center">
-                <span className="grid size-14 place-items-center rounded-2xl border border-brand/20 bg-card/70 shadow-lg shadow-brand/20 backdrop-blur">
-                  <BrandMark className="size-8" />
-                </span>
+                <BrandMark className="size-11 rounded-xl" />
                 <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">
                   Good {greeting()},{" "}
-                  <span className="text-brand-gradient">{firstName(user?.display || user?.username)}</span>
+                  {firstName(user?.display || user?.username)}
                 </h2>
                 <p className="text-sm text-muted-foreground">
                   Ask about a reading, attach a scanned report or a drawing, or have a note drafted.
@@ -151,10 +151,10 @@ export function ChatPage() {
               <div className="mt-6 grid grid-cols-1 gap-2 sm:grid-cols-2">
                 {SUGGESTIONS.map((s) => (
                   <button key={s.label} onClick={() => send(s.prompt, null)}
-                          className="group flex items-center gap-3 rounded-xl border bg-card/70 px-3 py-2.5
-                                     text-left text-[13px] shadow-xs backdrop-blur transition-all
-                                     hover:-translate-y-0.5 hover:border-brand/30 hover:bg-card hover:shadow-md">
-                    <span className={`grid size-7 shrink-0 place-items-center rounded-lg ${s.tone}`}>
+                          className="group flex items-center gap-3 rounded-xl border bg-card px-3 py-2.5
+                                     text-left text-[13px] transition-colors hover:border-foreground/20 hover:bg-accent/60">
+                    <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-muted
+                                     text-muted-foreground transition-colors group-hover:bg-brand/10 group-hover:text-brand">
                       <s.icon className="size-4" />
                     </span>
                     <span className="font-medium">{s.label}</span>

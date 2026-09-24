@@ -28,12 +28,10 @@ export function SignIn() {
   }
 
   return (
-    <main className="aurora relative grid min-h-svh place-items-center bg-background p-6">
+    <main className="relative grid min-h-svh place-items-center bg-background p-6">
       <div className="w-full max-w-[360px]">
         <div className="mb-8 flex flex-col items-center text-center">
-          <div className="mb-5 grid size-12 place-items-center rounded-2xl border bg-card shadow-sm">
-            <BrandMark className="size-6" />
-          </div>
+          <BrandMark className="mb-5 size-12 rounded-xl" />
           <h1 className="text-xl font-semibold tracking-tight">Sovereign AI Workbench</h1>
           <p className="mt-1.5 text-sm text-muted-foreground">
             Mangalore Refinery and Petrochemicals · PS 26117
@@ -58,7 +56,7 @@ export function SignIn() {
                    value={password} onChange={(e) => setPassword(e.target.value)} />
           </div>
           <Button type="submit" disabled={busy}
-                  className="bg-brand-gradient w-full text-white shadow-md shadow-brand/30 hover:opacity-95">
+                  className="w-full">
             {busy && <Loader2 className="animate-spin" />}
             {busy ? "Signing in…" : "Sign in"}
           </Button>

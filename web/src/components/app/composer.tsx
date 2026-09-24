@@ -153,8 +153,8 @@ export function Composer({ onSend, onStop, running, attachment, setAttachment, a
       )}
       <PromptInput value={value} onValueChange={setValue} onSubmit={send}
                    isLoading={running} maxHeight={220}
-                   className="glow-focus rounded-2xl border-border bg-card/90 p-2 shadow-lg shadow-black/5
-                              backdrop-blur transition-[box-shadow,border-color]">
+                   className="rounded-2xl border-border bg-card p-2 shadow-sm transition-[box-shadow,border-color]
+                              focus-within:border-foreground/25 focus-within:shadow-md">
         {(attachment || uploading) && (
           <div className="mx-1 mb-1 mt-0.5 flex">
             <div className="flex max-w-full items-center gap-2 rounded-xl border bg-muted/60 py-1.5 pl-2.5 pr-1.5">
@@ -212,9 +212,9 @@ export function Composer({ onSend, onStop, running, attachment, setAttachment, a
                     "inline-flex h-7 select-none items-center gap-1.5 rounded-full px-2.5 text-xs font-medium transition-colors",
                     chosen ? TIER[chosen.tier].tone
                       : tier ? tier.tone
-                      : "bg-brand/10 text-brand ring-1 ring-inset ring-brand/20 hover:bg-brand/15")}>
+                      : "bg-muted text-foreground ring-1 ring-inset ring-border hover:bg-accent")}>
                   {chosen ? <span className={cn("size-1.5 rounded-full", TIER[chosen.tier].dot)} />
-                    : <Sparkles className="size-3" />}
+                    : <Sparkles className="size-3 text-brand" />}
                   {chosen ? TIER[chosen.tier].name : <>Auto{tier && <span className="opacity-80">· {tier.short}</span>}</>}
                   <ChevronDown className="size-3 opacity-70" />
                 </button>
@@ -222,7 +222,7 @@ export function Composer({ onSend, onStop, running, attachment, setAttachment, a
               <DropdownMenuContent side="top" align="end" className="w-80 p-1.5">
                 <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Model</DropdownMenuLabel>
                 <DropdownMenuItem onSelect={() => onModelChange(null)} className="items-start gap-3 py-2">
-                  <span className="bg-brand-gradient mt-0.5 grid size-6 shrink-0 place-items-center rounded-md text-white">
+                  <span className="mt-0.5 grid size-6 shrink-0 place-items-center rounded-md bg-brand text-brand-foreground">
                     <Sparkles className="size-3.5" />
                   </span>
                   <span className="min-w-0 flex-1">
@@ -259,17 +259,15 @@ export function Composer({ onSend, onStop, running, attachment, setAttachment, a
                 <Square className="size-3 fill-current" />
               </Button>
             ) : (
-              // Solid and high-contrast, as Claude and ChatGPT do it: the brand
-              // gradient sat too close to the indigo background to find. The
-              // disabled look is a separate class list, not a variant layered
-              // over the gradient -- the plain-CSS gradient won that fight and
-              // left a dim purple blob.
+              // Solid orange, the one accent: the action on the page. Muted
+              // when there is nothing to send, chosen here rather than layered
+              // on as a disabled: variant (D-68).
               <Button size="icon" onClick={send} disabled={!value.trim() || uploading}
                       aria-label="Send"
                       className={cn("size-9 rounded-full transition-[transform,background-color]",
                         !value.trim() || uploading
                           ? "bg-muted text-muted-foreground disabled:opacity-100"
-                          : "bg-foreground text-background shadow-md hover:scale-105 hover:bg-foreground/90")}>
+                          : "bg-brand text-brand-foreground shadow-sm hover:bg-brand/90")}>
                 <ArrowUp className="size-[18px]" strokeWidth={2.5} />
               </Button>
             )}

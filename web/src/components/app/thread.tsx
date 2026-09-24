@@ -17,8 +17,8 @@ export function UserBubble({ text, attachment }: { text: string; attachment?: st
           {attachment.split("/").pop()}
         </div>
       )}
-      <div className="max-w-[85%] whitespace-pre-wrap break-words rounded-2xl rounded-br-md border border-brand/15
-                      bg-gradient-to-br from-brand/14 to-brand-2/10 px-4 py-2.5 text-[15px] leading-relaxed">
+      <div className="max-w-[85%] whitespace-pre-wrap break-words rounded-2xl rounded-br-md
+                      bg-secondary px-4 py-2.5 text-[15px] leading-relaxed">
         {text}
       </div>
     </div>

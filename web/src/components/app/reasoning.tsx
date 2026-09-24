@@ -10,18 +10,18 @@ import { TIER } from "@/lib/tiers"
 import type { Decision, Step } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
-// Each kind of work has its own colour, so a glance down the trail shows what
-// was searched, computed, run and written.
+// Icons tell the kinds of work apart; colour is kept for status.
+const NEUTRAL = "text-muted-foreground bg-muted ring-border"
 const TOOL: Record<string, { icon: typeof Search; tone: string }> = {
-  kb_search:      { icon: Search,          tone: "text-sky-500 bg-sky-500/12 ring-sky-500/25" },
-  read_document:  { icon: BookOpen,        tone: "text-sky-500 bg-sky-500/12 ring-sky-500/25" },
-  parse_page:     { icon: ScanLine,        tone: "text-fuchsia-500 bg-fuchsia-500/12 ring-fuchsia-500/25" },
-  describe_image: { icon: ScanLine,        tone: "text-fuchsia-500 bg-fuchsia-500/12 ring-fuchsia-500/25" },
-  calculate:      { icon: Calculator,      tone: "text-emerald-500 bg-emerald-500/12 ring-emerald-500/25" },
-  percent_change: { icon: Calculator,      tone: "text-emerald-500 bg-emerald-500/12 ring-emerald-500/25" },
-  run_python:     { icon: Code2,           tone: "text-violet-500 bg-violet-500/12 ring-violet-500/25" },
-  write_docx:     { icon: FileText,        tone: "text-amber-500 bg-amber-500/12 ring-amber-500/25" },
-  write_xlsx:     { icon: FileSpreadsheet, tone: "text-amber-500 bg-amber-500/12 ring-amber-500/25" },
+  kb_search:      { icon: Search,          tone: NEUTRAL },
+  read_document:  { icon: BookOpen,        tone: NEUTRAL },
+  parse_page:     { icon: ScanLine,        tone: NEUTRAL },
+  describe_image: { icon: ScanLine,        tone: NEUTRAL },
+  calculate:      { icon: Calculator,      tone: NEUTRAL },
+  percent_change: { icon: Calculator,      tone: NEUTRAL },
+  run_python:     { icon: Code2,           tone: NEUTRAL },
+  write_docx:     { icon: FileText,        tone: NEUTRAL },
+  write_xlsx:     { icon: FileSpreadsheet, tone: NEUTRAL },
 }
 
 /** The agent's work, inline under the answer the way Claude shows it: one
@@ -47,10 +47,10 @@ export function Reasoning({ steps, decision, thinking, live = false, thinkingNow
   return (
     <Collapsible open={open} onOpenChange={setOpen} className="mb-3">
       <CollapsibleTrigger className="group/trigger inline-flex max-w-full items-center gap-2 rounded-full border border-border/70
-                                     bg-card/70 py-1 pl-1.5 pr-3 text-[13px] text-muted-foreground shadow-xs backdrop-blur
-                                     transition-colors hover:border-brand/40 hover:text-foreground">
+                                     bg-card py-1 pl-1.5 pr-3 text-[13px] text-muted-foreground
+                                     transition-colors hover:bg-accent hover:text-foreground">
         <span className={cn("grid size-6 shrink-0 place-items-center rounded-full",
-                            live ? "bg-brand-gradient text-white" : "bg-brand/12 text-brand")}>
+                            live ? "bg-brand text-brand-foreground" : "bg-muted text-foreground")}>
           {live ? <Sparkles className="size-3.5 animate-pulse" /> : <BrainCircuit className="size-3.5" />}
         </span>
         <span className="min-w-0 truncate">
@@ -111,7 +111,7 @@ export function Reasoning({ steps, decision, thinking, live = false, thinkingNow
                   </pre>
                 )}
                 {stdout ? (
-                  <pre className="mt-1.5 max-h-40 overflow-auto rounded-lg border border-violet-500/20 bg-violet-500/5 p-2.5 font-mono text-[11px]">
+                  <pre className="mt-1.5 max-h-40 overflow-auto rounded-lg border bg-muted/50 p-2.5 font-mono text-[11px]">
                     {stdout}
                   </pre>
                 ) : out && (out.arg || result?.detail.error) ? (

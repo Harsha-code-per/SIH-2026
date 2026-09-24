@@ -536,6 +536,23 @@ variant layered over the gradient. The three-colour glow behind the empty
 page and sign-in was removed as well; it read as a blob in the centre.
 **Where:** `web/src/components/app/composer.tsx`, `web/src/index.css`.
 
+### D-69 · Black and white, with orange as the only accent
+**Why:** two palettes were rejected by the person who will present this. A
+warm grey read as dull; the indigo replacement, with a blue-to-violet
+gradient, a colour per tier and per tool, and glows behind the page, read as
+unprofessional. The interface is now true neutrals (no tint) in both themes,
+with orange for the things that can be acted on — the logo, primary buttons,
+the send button, focus and the active item. Tier chips and tool icons are
+neutral; colour elsewhere is status only (contained, verified, failed).
+Changing `--primary` to orange turned typed text orange, because prompt-kit's
+textarea used `text-primary` for body text; those uses are `text-foreground`
+now. Separately, the page header showed its own sidebar toggle whenever the
+sidebar was collapsed, beside the rail's toggle: two identical icons. The
+header toggle is now phone-only.
+**Where:** `web/src/index.css`, `web/src/lib/tiers.ts`,
+`web/src/components/app/brand.tsx`, `web/src/pages/chat.tsx`,
+`web/src/components/app/page.tsx`.
+
 ---
 
 ## Environment facts worth knowing

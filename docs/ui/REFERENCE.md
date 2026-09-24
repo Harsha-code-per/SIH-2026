@@ -88,7 +88,10 @@ does:
 - Deliverables as **file cards**.
 - **Sans**, not Claude's serif: tags like `P-204` and readings with aligned
   figures read better for engineering content.
-- **Warm neutral dark** plus a light theme; Gemini's ambient glow on the empty
-  state only; motion only where it tells the user something.
-- The model picker is replaced by **visible auto-routing** — the problem
-  statement asks for automatic selection, so the composer shows it happening.
+- **Black and white** — true neutrals, light and dark — with **orange** as the
+  one accent, for the logo, primary buttons, send and focus. No glows or
+  gradients: a warm grey read as dim, and an indigo palette with glows read as
+  unprofessional (D-69). Motion only where it tells the user something.
+- **Visible auto-routing** is the default — the problem statement asks for
+  automatic selection, so the composer shows it happening — with a manual
+  model picker beside it (D-67).

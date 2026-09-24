@@ -115,7 +115,7 @@ export function SourceContent({
             width={16}
             height={16}
           />
-          <div className="text-primary truncate text-sm">
+          <div className="text-foreground truncate text-sm">
             {domain.replace("www.", "")}
           </div>
         </div>

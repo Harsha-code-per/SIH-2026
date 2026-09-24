@@ -11,11 +11,12 @@ export function Page({ title, description, actions, children, className }: {
   children: React.ReactNode
   className?: string
 }) {
-  const { open, isMobile } = useSidebar()
+  const { isMobile } = useSidebar()
   return (
     <div className="flex h-full min-h-0 flex-col">
       <header className="flex h-12 shrink-0 items-center gap-2 px-3">
-        {(!open || isMobile) && <SidebarTrigger className="text-muted-foreground" />}
+        {/* Phone only; on a desktop the sidebar's own toggle is always there. */}
+        {isMobile && <SidebarTrigger className="text-muted-foreground" />}
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className={cn("mx-auto w-full max-w-4xl px-4 pb-16 pt-2 sm:px-8", className)}>

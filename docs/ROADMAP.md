@@ -86,9 +86,9 @@ shadcn/ui and prompt-kit on Vite. Findings from studying the three live are in
 
 - [x] **H. Review changes** — after a first look: reasoning moved inline into
   the conversation and the right panel reduced to on-demand evidence (one
-  toggle, not two); a manual model picker beside automatic routing; a vivid
-  indigo palette with a brand gradient, per-tier and per-tool colours, and an
-  aurora behind every page, replacing the muted warm grey
+  toggle, not two); a manual model picker beside automatic routing; a formal
+  black-and-white palette with orange as the single accent (D-69), after a
+  vivid indigo-and-gradient attempt was rejected
 
 ## Phase 3 — Demo completion `IN PROGRESS · due 30 Sept`
 
