@@ -392,6 +392,25 @@ were downloaded and their sources written directly. Useful again on any slow
 or restricted network.
 **Where:** `web/src/components/prompt-kit/`.
 
+### D-53 · One page instance across the new-conversation redirect
+`/` and `/c/:id` render the same `ChatPage` element with no key, and
+`useThread` keeps its state when the id it moves to is the one it just
+created.
+**Why:** a first message is sent from `/`, and the server names the
+conversation mid-run, so the address changes while the answer is still coming.
+A `key` on the `/` route remounted the page at that moment: the new instance
+fetched a conversation whose first turn was not saved yet and showed it empty,
+while the live stream carried on in an unmounted component. Moving to a
+*different* conversation still aborts and resets.
+**Where:** `web/src/App.tsx`, `web/src/hooks/use-thread.ts`.
+
+### D-54 · Radix ScrollArea content needs `display: block`
+**Why:** Radix wraps the viewport content in `display: table`, which grows to
+fit its widest unbreakable line. A markdown table row inside a retrieved
+passage pushed every card in the Inspector past the panel's edge. The
+Inspector forces the wrapper to block.
+**Where:** `web/src/components/app/inspector.tsx`.
+
 ---
 
 ## Environment facts worth knowing

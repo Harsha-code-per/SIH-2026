@@ -62,14 +62,18 @@ shadcn/ui and prompt-kit on Vite. Findings from studying the three live are in
   SPA fallback; deliverable outline; no tokens in URLs
 - [x] **B. Scaffold** — `web/` with Vite, Tailwind v4, shadcn, prompt-kit; warm
   neutral tokens for both themes; multi-stage build; bundled fonts
-- [ ] **C. Shell** — sign-in, sidebar with history, thread, composer, Inspector
+- [x] **C. Shell** — sign-in; sidebar with history grouped by age, search,
+  rename, delete, admin group, containment indicator and account menu; thread
+  with markdown answers and a one-line activity summary; composer with
+  attachments, drag and drop, and a live routing preview; the Inspector with
+  Activity, Sources, Files and Shield; a working Settings dialog
 - [ ] **D. AI rendering** — markdown, reasoning summary, citations, verification seal, file cards
 - [ ] **E. Views** — Knowledge, Models, Audit, Users, Settings, ⌘K, slash commands
 - [ ] **F. Verify** — responsive, both themes, accessibility, side-by-side with references
 - [ ] **G. Streaming** — token and thinking streams, visible revision on repair
 
-**Transitional state:** the old single-file interface is removed and the new
-one is a placeholder until phase C lands. Use the API or `make prove`.
+**Transitional state:** Knowledge, Users, Models and Audit are placeholder
+pages until phase E; citations render as raw `[Doc.md#7]` until phase D.
 
 ## Phase 3 — Demo completion `IN PROGRESS · due 30 Sept`
 

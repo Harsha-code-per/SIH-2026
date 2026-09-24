@@ -2,7 +2,38 @@
 
 import { cn } from "@/lib/utils"
 import React, { useEffect, useState } from "react"
-import { codeToHtml } from "shiki"
+import { createHighlighterCore, type HighlighterCore } from "shiki/core"
+import { createJavaScriptRegexEngine } from "shiki/engine/javascript"
+
+// Edited from the prompt-kit original. Its `codeToHtml` import pulled every
+// grammar shiki ships -- 309 chunks, 12 MB -- and the 600 KB oniguruma WASM
+// engine, for answers that contain Python, JSON and the odd shell line. Only
+// those languages are bundled, with the JavaScript regex engine. It also
+// hard-coded a light theme; both themes are emitted and CSS picks one.
+const LANGS = ["python", "json", "bash", "yaml", "markdown", "sql", "csv"] as const
+const ALIASES: Record<string, string> = { py: "python", sh: "bash", shell: "bash",
+  zsh: "bash", yml: "yaml", md: "markdown" }
+
+let highlighter: Promise<HighlighterCore> | null = null
+function getHighlighter() {
+  highlighter ??= createHighlighterCore({
+    themes: [import("shiki/themes/github-light.mjs"), import("shiki/themes/github-dark-dimmed.mjs")],
+    langs: [
+      import("shiki/langs/python.mjs"), import("shiki/langs/json.mjs"),
+      import("shiki/langs/bash.mjs"), import("shiki/langs/yaml.mjs"),
+      import("shiki/langs/markdown.mjs"), import("shiki/langs/sql.mjs"),
+      import("shiki/langs/csv.mjs"),
+    ],
+    engine: createJavaScriptRegexEngine(),
+  })
+  return highlighter
+}
+
+function resolveLang(lang?: string): string {
+  const l = (lang ?? "").toLowerCase()
+  const name = ALIASES[l] ?? l
+  return (LANGS as readonly string[]).includes(name) ? name : "text"
+}
 
 export type CodeBlockProps = {
   children?: React.ReactNode
@@ -33,8 +64,8 @@ export type CodeBlockCodeProps = {
 
 function CodeBlockCode({
   code,
-  language = "tsx",
-  theme = "github-light",
+  language = "text",
+  theme: _theme,
   className,
   ...props
 }: CodeBlockCodeProps) {
@@ -47,11 +78,16 @@ function CodeBlockCode({
         return
       }
 
-      const html = await codeToHtml(code, { lang: language, theme })
+      const h = await getHighlighter()
+      const html = h.codeToHtml(code, {
+        lang: resolveLang(language),
+        themes: { light: "github-light", dark: "github-dark-dimmed" },
+        defaultColor: false,
+      })
       setHighlightedHtml(html)
     }
     highlight()
-  }, [code, language, theme])
+  }, [code, language])
 
   const classNames = cn(
     "w-full overflow-x-auto text-[13px] [&>pre]:px-4 [&>pre]:py-4",
