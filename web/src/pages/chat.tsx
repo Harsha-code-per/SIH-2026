@@ -10,7 +10,6 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Composer, type Attachment } from "@/components/app/composer"
 import { AssistantTurn, LiveAssistant, UserBubble } from "@/components/app/thread"
 import { Inspector, type InspectorSubject, type InspectorTab } from "@/components/app/inspector"
-import { BrandMark } from "@/components/app/brand"
 import { useAuth } from "@/hooks/use-auth"
 import { useConversations } from "@/hooks/use-conversations"
 import { useIsMobile } from "@/hooks/use-mobile"
@@ -136,7 +135,6 @@ export function ChatPage() {
           <div className="flex flex-1 flex-col items-center justify-center px-4 pb-16">
             <div className="w-full max-w-[680px]">
               <div className="mb-8 flex flex-col items-center gap-3 text-center">
-                <BrandMark className="size-11 rounded-xl" />
                 <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">
                   Good {greeting()},{" "}
                   {firstName(user?.display || user?.username)}
